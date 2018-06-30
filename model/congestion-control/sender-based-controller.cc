@@ -266,6 +266,24 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     return true;
 }
 
+uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){
+    uint32_t qsize = m_inTransitPackets.size();
+    uint64_t prev_t, now_t;
+
+    int i = 0;
+    for(i = 0; i < qsize; i++){
+        if(m_inTransitPackets.at(i).sequence == prev_s){
+	    prev_t = m_inTransitPackets.at(i).txTimestampUs;
+	}
+	
+	if(m_inTransitPackets.at(i).sequence == now_s){
+	    now_t = m_inTransitPackets.at(i).txTimestampUs;
+	}
+    }
+
+    return (now_t - prev_t);
+}
+
 void SenderBasedController::setHistoryLength(uint64_t lenUs) {
     m_historyLengthUs = lenUs;
 }

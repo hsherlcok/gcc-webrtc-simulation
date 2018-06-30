@@ -53,6 +53,13 @@ RmcatSender::RmcatSender ()
 , m_groupchanged{false}
 , m_ssrc{0}
 , m_sequence{0}
+, m_first_seq{0}	// First sequence number.
+, m_gid{0}		// Group id
+, m_prev_seq{0}		// Seq number of previous feedback packet
+, m_prev_group_seq{0}   // End Sequence number of previous feedback pkt.
+, m_prev_group_time{0}
+, m_prev_group_atime{0}	// Arrival Time of previous group.
+, m_prev_time{0}
 , m_rtpTsOffset{0}
 , m_socket{NULL}
 , m_enqueueEvent{}
@@ -213,6 +220,7 @@ void RmcatSender::StartApplication ()
     m_ssrc = rand ();
     // RTP initial values for sequence number and timestamp SHOULD be random (RFC 3550)
     m_sequence = rand ();
+    m_first_seq = m_sequence;
     m_rtpTsOffset = rand ();
 
     NS_ASSERT (m_minBw <= m_initBw);
@@ -346,15 +354,7 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     Address remoteAddr;
     auto Packet = m_socket->RecvFrom (remoteAddr);
     NS_ASSERT (Packet);
-
-    // Check Packet Group Change.
-    auto nowUs = Simulator::Now().GetMicroSeconds();
-    if((nowUs - m_prev_feedback_time) >= BURST_TIME){
-        m_groupchanged = true;
-    }
-    m_prev_feedback_time = nowUs;
-
-
+    
     auto rIPAddress = InetSocketAddress::ConvertFrom (remoteAddr).GetIpv4 ();
     auto rport = InetSocketAddress::ConvertFrom (remoteAddr).GetPort ();
     NS_ASSERT (rIPAddress == m_destIP);
@@ -379,6 +379,41 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     for (auto& item : feedback) {
         const auto sequence = item.first;
         const auto timestampUs = item.second.m_timestampUs;
+        if(sequence == m_first_seq){
+            gid = 0;
+            m_prev_group_time = timestampUs;        
+        }
+        // 5000micro seconds = BURST_TIME
+        if((timestampUs - m_prev_group_time) >= 5000){
+            // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
+            if(gid == 0){
+		// First Group
+		m_prev_group_seq = m_prev_seq;
+		m_prev_group_atime = m_prev_time;
+		m_prev_group_time = timestampUs;
+		gid += 1;
+	    }
+	    else{
+		// Else
+                gid += 1;
+                m_prev_group_time = timestampUs;
+
+		// Calculate inter variables
+                const auto l_inter_arrival = m_prev_time - m_prev_group_atime;
+		const auto l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
+
+		m_prev_group_atime = m_prev_time;
+		m_prev_group_seq = m_prev_time;
+	    }
+        }
+	
+	// Increment...
+	m_prev_time = timestampUs;
+	m_prev_seq = sequence;
+        
+	// Calculate Inter Delay Variation
+        const auto l_inter_delay_var = l_inter_arrival - l_inter_departure;
+
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
         // TODO (Xiaoqing): Define a new API call to controller that takes the whole vector at once
