@@ -34,6 +34,7 @@
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 #include "ns3/log.h"
+#include "ns3/gcc-controller.h"
 
 #include <sys/stat.h>
 
@@ -48,6 +49,8 @@ RmcatSender::RmcatSender ()
 , m_minBw{0}
 , m_maxBw{0}
 , m_paused{false}
+, m_prev_feedback_time{0.}
+, m_groupchanged{false}
 , m_ssrc{0}
 , m_sequence{0}
 , m_rtpTsOffset{0}
@@ -241,7 +244,7 @@ void RmcatSender::StopApplication ()
 void RmcatSender::EnqueuePacket ()
 {
     syncodecs::Codec& codec = *m_codec;
-    codec.setTargetRate (m_rVin);
+    codec.setTargetRate (m_rVin);	// Media rate.
     ++codec; // Advance codec/packetizer to next frame/packet
     const auto bytesToSend = codec->first.size ();
     NS_ASSERT (bytesToSend > 0);
@@ -343,6 +346,14 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     Address remoteAddr;
     auto Packet = m_socket->RecvFrom (remoteAddr);
     NS_ASSERT (Packet);
+
+    // Check Packet Group Change.
+    auto nowUs = Simulator::Now().GetMicroSeconds();
+    if((nowUs - m_prev_feedback_time) >= BURST_TIME){
+        m_groupchanged = true;
+    }
+    m_prev_feedback_time = nowUs;
+
 
     auto rIPAddress = InetSocketAddress::ConvertFrom (remoteAddr).GetIpv4 ();
     auto rport = InetSocketAddress::ConvertFrom (remoteAddr).GetPort ();

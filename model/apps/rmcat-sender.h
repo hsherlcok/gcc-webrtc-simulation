@@ -79,6 +79,8 @@ private:
     uint32_t m_ssrc;
     uint16_t m_sequence;
     uint32_t m_rtpTsOffset;
+    uint64_t m_prev_feedback_time;
+    bool m_groupchanged;
     Ptr<Socket> m_socket;
     EventId m_enqueueEvent;
     EventId m_sendEvent;
