@@ -430,15 +430,13 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
 
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
-        // TODO (Xiaoqing): Define a new API call to controller that takes the whole vector at once
-        //                  Adapt NADA to only use the last metric for measuring delay
-        //                  Careful! We still need to look at all packets for loss information
 
 	// TODO SHOULD MODIFY. UNCLEAR : Does processFeedback only call when group is changed?
 	if(is_group_chaged){
-            m_controller->processFeedback (nowUs, sequence, timestampUs, ecn);
+            m_controller->processFeedback (nowUs, sequence, timestampUs, ecn, l_inter_arrival, l_inter_departure, l_inter_delay_var);
         }
     }
+    // TODO MAYBE THIS PART IS NOT NEEDED.
     CalcBufferParams (nowUs);
 }
 
