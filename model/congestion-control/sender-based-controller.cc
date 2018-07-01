@@ -175,7 +175,10 @@ bool SenderBasedController::processSendPacket(uint64_t txTimestampUs,
 bool SenderBasedController::processFeedback(uint64_t nowUs,
                                             uint16_t sequence,
                                             uint64_t rxTimestampUs,
-                                            uint8_t ecn) {
+                                            uint8_t ecn,
+					    uint64_t l_inter_arrival,
+					    uint64_t l_inter_departure,
+					    uint64_t l_inter_delay_var) {
     if (lessThan(m_lastSequence, sequence)) {
         std::cerr << "SenderBasedController::ProcessFeedback,"
                   << " strange sequence: " << sequence

@@ -68,7 +68,10 @@ public:
     virtual bool processFeedback(uint64_t nowUs,
                                  uint16_t sequence,
                                  uint64_t rxTimestampUs,
-                                 uint8_t ecn=0);
+                                 uint8_t ecn=0,
+				 uint64_t l_inter_arrival,
+				 uint64_t l_inter_departure,
+				 uint64_t l_inter_delay_var);
 
     /** NADA's realization of the #getBandwidth API */
     virtual float getBandwidth(uint64_t nowUs) const;

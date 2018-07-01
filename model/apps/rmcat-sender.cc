@@ -379,6 +379,7 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     for (auto& item : feedback) {
         const auto sequence = item.first;
         const auto timestampUs = item.second.m_timestampUs;
+	const bool is_group_changed = false;
         if(sequence == m_first_seq){
             gid = 0;
             m_prev_group_time = timestampUs;        
@@ -395,15 +396,30 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
 	    }
 	    else{
 		// Else
-                gid += 1;
-                m_prev_group_time = timestampUs;
-
 		// Calculate inter variables
-                const auto l_inter_arrival = m_prev_time - m_prev_group_atime;
-		const auto l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
+		const auto l_inter_arrival = m_prev_time - m_prev_group_atime;
+		// Prefiltering (If inter arrival time is less than BURST_TIME, it is part of current working packet group.)
+		if(l_inter_arrival > 5000){
+		    const auto l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
+	            	
+  	            // Calculate Inter Delay Variation
+        	    const auto l_inter_delay_var = l_inter_arrival - l_inter_departure;
+                    // Prefiltering (If inter delay variation is less than 0, it is part of current working packet group.)
+		    if(l_inter_delay_var >= 0){
+		        gid += 1;
+		        m_prev_group_time = timestampUs;
 
-		m_prev_group_atime = m_prev_time;
-		m_prev_group_seq = m_prev_time;
+		        m_prev_group_atime = m_prev_time;
+		        m_prev_group_seq = m_prev_time;
+			is_group_changed = true;
+		    }
+		    else{
+		        is_group_changed = false;
+		    }
+		}
+		else{
+		    is_group_changed = false;
+		}
 	    }
         }
 	
@@ -411,15 +427,17 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
 	m_prev_time = timestampUs;
 	m_prev_seq = sequence;
         
-	// Calculate Inter Delay Variation
-        const auto l_inter_delay_var = l_inter_arrival - l_inter_departure;
 
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
         // TODO (Xiaoqing): Define a new API call to controller that takes the whole vector at once
         //                  Adapt NADA to only use the last metric for measuring delay
         //                  Careful! We still need to look at all packets for loss information
-        m_controller->processFeedback (nowUs, sequence, timestampUs, ecn);
+
+	// TODO SHOULD MODIFY. UNCLEAR : Does processFeedback only call when group is changed?
+	if(is_group_chaged){
+            m_controller->processFeedback (nowUs, sequence, timestampUs, ecn);
+        }
     }
     CalcBufferParams (nowUs);
 }
