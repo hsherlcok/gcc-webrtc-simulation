@@ -269,6 +269,15 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     return true;
 }
 
+uint64_t GetPacketTxTimestamp(uint16_t sequence){
+    int i = 0;
+    for(i = 0; i < qsize; i++){
+        if(m_inTransitPackets.at(i).sequence == sequence){
+            return m_inTransitPackets.at(i).txTimestampUs;
+        }
+    }
+}
+
 uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){
     uint32_t qsize = m_inTransitPackets.size();
     uint64_t prev_t, now_t;

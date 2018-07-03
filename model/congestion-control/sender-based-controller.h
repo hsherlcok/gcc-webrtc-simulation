@@ -230,6 +230,9 @@ public:
                                  uint64_t l_inter_departure,
                                  uint64_t l_inter_delay_var);
 
+    virtual uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s);
+
+    virtual uint64_t GetPacketTxTimestamp(uint16_t sequence);
     /**
      * The sender application will call this function every time it needs to
      * know what is the current bandwidth as estimated by the congestion

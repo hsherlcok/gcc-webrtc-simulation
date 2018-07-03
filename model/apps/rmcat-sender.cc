@@ -382,16 +382,16 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
 	const bool is_group_changed = false;
         if(sequence == m_first_seq){
             gid = 0;
-            m_prev_group_time = timestampUs;        
+            m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);        
         }
         // 5000micro seconds = BURST_TIME
-        if((timestampUs - m_prev_group_time) >= 5000){
+        if((m_controller->GetPacketTxTimestamp(sequence) - m_prev_group_time) >= 5000){
             // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
             if(gid == 0){
 		// First Group
 		m_prev_group_seq = m_prev_seq;
 		m_prev_group_atime = m_prev_time;
-		m_prev_group_time = timestampUs;
+		m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
 		gid += 1;
 	    }
 	    else{
@@ -407,10 +407,10 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
                     // Prefiltering (If inter delay variation is less than 0, it is part of current working packet group.)
 		    if(l_inter_delay_var >= 0){
 		        gid += 1;
-		        m_prev_group_time = timestampUs;
+		        m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
 
 		        m_prev_group_atime = m_prev_time;
-		        m_prev_group_seq = m_prev_time;
+		        m_prev_group_seq = m_prev_seq;
 			is_group_changed = true;
 		    }
 		    else{
