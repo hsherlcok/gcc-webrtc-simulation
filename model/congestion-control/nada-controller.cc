@@ -148,10 +148,7 @@ void NadaController::reset() {
 bool NadaController::processFeedback(uint64_t nowUs,
                                      uint16_t sequence,
                                      uint64_t rxTimestampUs,
-                                     uint8_t ecn,
-				     uint64_t l_inter_arrival,
-				     uint64_t l_inter_departure,
-				     uint64_t l_inter_delay_var) {
+                                     uint8_t ecn) {
     /* First of all, call the superclass */
     if (!SenderBasedController::processFeedback(nowUs,
                                                 sequence,
