@@ -226,9 +226,9 @@ public:
                                  uint16_t sequence,
                                  uint64_t rxTimestampUs,
                                  uint8_t ecn=0,
-				 uint64_t l_inter_arrival,
-				 uint64_t l_inter_departure,
-				 uint64_t l_inter_delay_var);
+                                 uint64_t l_inter_arrival,
+                                 uint64_t l_inter_departure,
+                                 uint64_t l_inter_delay_var);
 
     /**
      * The sender application will call this function every time it needs to

@@ -61,15 +61,15 @@ bool DummyController::processFeedback(uint64_t nowUs,
                                       uint16_t sequence,
                                       uint64_t rxTimestampUs,
                                       uint8_t ecn,
-				      uint64_t l_inter_arrival,
+                                      uint64_t l_inter_arrival,
                                       uint64_t l_inter_departure,
-				      uint64_t l_inter_delay_var) {
+                                      uint64_t l_inter_delay_var) {
     // First of all, call the superclass
     const bool res = SenderBasedController::processFeedback(nowUs, sequence,
                                                             rxTimestampUs, ecn,
-							    l_inter_arrival,
-							    l_inter_departure,
-							    l_inter_delay_var);
+                                                            l_inter_arrival,
+                                                            l_inter_departure,
+                                                            l_inter_delay_var);
     const uint64_t calcIntervalUs = 200 * 1000;
     if (m_lastTimeCalcValid) {
         assert(lessThan(m_lastTimeCalcUs, nowUs + 1));

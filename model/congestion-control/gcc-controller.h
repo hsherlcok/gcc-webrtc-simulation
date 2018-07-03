@@ -25,10 +25,17 @@
  * @author Xiaoqing Zhu
  */
 
-#ifndef DUMMY_CONTROLLER_H
-#define DUMMY_CONTROLLER_H
+#ifndef GCC_CONTROLLER_H
+#define GCC_CONTROLLER_H
 
 #include "sender-based-controller.h"
+#include <sstream>
+#include <cassert>
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+#include <algorithm>
+#include "rtc_base/numerics/safe_minmax.h"
 
 namespace rmcat {
 
@@ -36,14 +43,14 @@ namespace rmcat {
  * Simplistic implementation of a sender-based congestion controller. The
  * algorithm simply returns a constant, hard-coded bandwidth when queried.
  */
-class DummyController: public SenderBasedController
+class GccController: public SenderBasedController
 {
 public:
     /** Class constructor */
-    DummyController();
+    GccController();
 
     /** Class destructor */
-    virtual ~DummyController();
+    virtual ~GccController();
 
     /**
      * Set the current bandwidth estimation. This can be useful in test environments
@@ -67,16 +74,34 @@ public:
                                  uint64_t rxTimestampUs,
                                  uint8_t ecn=0,
                                  uint64_t l_inter_arrival,
-			         uint64_t l_inter_departure,
-				 uint64_t l_inter_delay_var);
-    
+                                 uint64_t l_inter_departure,
+                                 uint64_t l_inter_delay_var);
     /**
      * Simplistic implementation of bandwidth getter. It returns a hard-coded
      * bandwidth value in bits per second
      */
     virtual float getBandwidth(uint64_t nowUs) const;
 
+	
+/*Overuse Estimator Function */
+    virtual void OveruseEstimatorUpdate(int64_t t_delta, double ts_delta,
+	int size_delta, std::string current_hypothesis, int64_t now_ms);
+	
+/*Overuse Detector Function */
+    virtual std::string OveruseDetectorDetect(double offset, double timestamp_delta, int num_of_deltas, int64_t now_ms);
+
+    virtual std::string State() const;
+
+
 private:
+/*Overuse Estimator Function */
+    double UpdateMinFramePeriod(double ts_delta);
+    void UpdateNoiseEstimate(double residual, double ts_delta, bool stable_state);
+
+/*Overuse Detector Function */
+    void UpdateThreshold(double modified_offset, int64_t now_ms);
+
+
     void updateMetrics();
     void logStats(uint64_t nowUs) const;
 
@@ -87,6 +112,31 @@ private:
     uint32_t m_ploss;  /**< packet loss count within configured window */
     float m_plr;       /**< packet loss ratio within packet history window */
     float m_RecvR;     /**< updated receiving rate in bps */
+	
+/*Overuse Estimator variable*/
+    uint16_t num_of_deltas_;
+    double slope_;
+    double offset_;
+    double prev_offset_;
+    double E_[2][2];
+    double process_noise_[2];
+    double avg_noise_;
+    double var_noise_;
+    std::deque<double> ts_delta_hist_;
+
+/*Overuse Detector variable*/
+    double k_up_;
+    double k_down_;
+    double overusing_time_threshold_;
+    double threshold_;
+    int64_t last_update_ms_;
+    double D_prev_offset_;
+    double time_over_using_;
+    int overuse_counter_;
+    std::string D_hypothesis_;
+
+
+
 };
 
 }
