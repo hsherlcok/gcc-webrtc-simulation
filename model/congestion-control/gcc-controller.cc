@@ -50,7 +50,7 @@ GccController::GccController() :
     m_QdelayUs{0},
     m_ploss{0},
     m_plr{0.f},
-    m_RecvR{0.},
+    m_RecvR{0.}, 
 
     num_of_deltas_(0),
     slope_(0),	//need initial value
@@ -71,11 +71,8 @@ GccController::GccController() :
     time_over_using_(-1),
     overuse_counter_(0),
     D_hypothesis_("Normal")   
-    
 
 {}
-
-    
 
 GccController::~GccController() {}
 
@@ -108,6 +105,7 @@ bool GccController::processFeedback(uint64_t nowUs,
                                                             l_inter_arrival,
                                                             l_inter_departure,
                                                             l_inter_delay_var);
+    
     const uint64_t calcIntervalUs = 200 * 1000;
     if (m_lastTimeCalcValid) {
         assert(lessThan(m_lastTimeCalcUs, nowUs + 1));
