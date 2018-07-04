@@ -67,6 +67,7 @@ RmcatSender::RmcatSender ()
 , m_sendOversleepEvent{}
 , m_rVin{0.}
 , m_rSend{0.}
+, m_rBitrate{0.}
 , m_rateShapingBytes{0}
 , m_nextSendTstmpUs{0}
 {}
@@ -188,7 +189,7 @@ void RmcatSender::Setup (Ipv4Address destIP,
     }
 
     if (!m_controller) {
-        m_controller = std::make_shared<rmcat::DummyController> ();
+        m_controller = std::make_shared<rmcat::DummyController> ();  // TODO Controller.
     } else {
         m_controller->reset ();
     }
@@ -258,8 +259,11 @@ void RmcatSender::EnqueuePacket ()
     NS_ASSERT (bytesToSend > 0);
     NS_ASSERT (bytesToSend <= DEFAULT_PACKET_SIZE);
 
-    m_rateShapingBuf.push_back (bytesToSend);
-    m_rateShapingBytes += bytesToSend;
+    m_PacingQ.push_back (bytesToSend);
+    m_PacingQBytes += bytesToSend;
+
+//    m_rateShapingBuf.push_back (bytesToSend);
+//    m_rateShapingBytes += bytesToSend;
 
     NS_LOG_INFO ("RmcatSender::EnqueuePacket, packet enqueued, packet length: " << bytesToSend
                  << ", buffer size: " << m_rateShapingBuf.size ()
@@ -294,19 +298,19 @@ void RmcatSender::EnqueuePacket ()
 
 void RmcatSender::SendPacket (uint64_t usSlept)
 {
-    NS_ASSERT (m_rateShapingBuf.size () > 0);
-    NS_ASSERT (m_rateShapingBytes < MAX_QUEUE_SIZE_SANITY);
+    NS_ASSERT (m_PacingQ.size () > 0);
+    NS_ASSERT (m_PacingQBytes < MAX_QUEUE_SIZE_SANITY);
 
-    const auto bytesToSend = m_rateShapingBuf.front ();
+    const auto bytesToSend = m_PacingQ.front ();
     NS_ASSERT (bytesToSend > 0);
     NS_ASSERT (bytesToSend <= DEFAULT_PACKET_SIZE);
-    m_rateShapingBuf.pop_front ();
-    NS_ASSERT (m_rateShapingBytes >= bytesToSend);
-    m_rateShapingBytes -= bytesToSend;
+    m_PacingQ.pop_front ();
+    NS_ASSERT (m_PacingQBytes >= bytesToSend);
+    m_PacingQBytes -= bytesToSend;
 
     NS_LOG_INFO ("RmcatSender::SendPacket, packet dequeued, packet length: " << bytesToSend
-                 << ", buffer size: " << m_rateShapingBuf.size ()
-                 << ", buffer bytes: " << m_rateShapingBytes);
+                 << ", buffer size: " << m_PacingQ.size ()
+                 << ", buffer bytes: " << m_PacingQBytes);
 
     // Synthetic oversleep: random uniform [0% .. 1%]
     uint64_t oversleepUs = usSlept * (rand () % 100) / 10000;
@@ -318,7 +322,7 @@ void RmcatSender::SendPacket (uint64_t usSlept)
     const double usToNextSentPacketD = double (bytesToSend) * 8. * 1000. * 1000. / m_rSend;
     const uint64_t usToNextSentPacket = uint64_t (usToNextSentPacketD);
 
-    if (!USE_BUFFER || m_rateShapingBuf.size () == 0) {
+    if (!USE_BUFFER || m_PacingQ.size () == 0) {
         // Buffer became empty
         const auto nowUs = Simulator::Now ().GetMicroSeconds ();
         m_nextSendTstmpUs = nowUs + usToNextSentPacket;

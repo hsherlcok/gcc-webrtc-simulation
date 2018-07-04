@@ -95,8 +95,11 @@ private:
 
     double m_rVin; //bps
     double m_rSend; //bps
+    double m_rBitrate;  // Target Bit Rate.
     std::deque<uint32_t> m_rateShapingBuf;
+    std::deque<uint32_t> m_PacingQ;
     uint32_t m_rateShapingBytes;
+    uint32_t m_PacingQBytes;
     uint64_t m_nextSendTstmpUs;
 };
 
