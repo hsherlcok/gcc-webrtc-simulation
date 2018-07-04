@@ -35,7 +35,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <algorithm>
+#include <cstdio>
+#include <cmath>
+#include <string>
+
+#include "rtc_base_checks.h"
 #include "rtc_base/numerics/safe_minmax.h"
+
+
 
 namespace rmcat {
 
@@ -84,13 +91,30 @@ public:
 
 	
 /*Overuse Estimator Function */
-    virtual void OveruseEstimatorUpdate(int64_t t_delta, double ts_delta,
-	int size_delta, std::string current_hypothesis, int64_t now_ms);
+    void OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int size_delta, char current_hypothesis, int64_t now_ms);
 	
 /*Overuse Detector Function */
-    virtual std::string OveruseDetectorDetect(double offset, double timestamp_delta, int num_of_deltas, int64_t now_ms);
+    char OveruseDetectorDetect(double offset, double timestamp_delta, int num_of_deltas, int64_t now_ms);
+    char State() const;
 
-    virtual std::string State() const;
+
+/*Delay Based Rate Controller Function*/
+    bool ValidEstimate() const;
+    void SetStartBitrate(int start_bitrate_bps);
+    void SetMinBitrate(int min_bitrate_bps);
+    int64_t GetFeedbackInterval() const;
+
+    bool TimeToReduceFurther(int64_t time_now, uint64_t incoming_bitrate_bps) const;
+
+    uint32_t LatestEstimate() const;
+    void SetRtt(int64_t rtt);
+    uint32_t Update(char bw_state, uint32_t incoming_bitrate, double noise_var, int64_t now_ms);
+
+    void SetEstimate(int bitrate_bps, int64_t now_ms);
+
+    int GetNearMaxIncreaseRateBps() const;
+    int GetExpectedBandwidthPeriodMs() const;
+
 
 
 private:
@@ -101,9 +125,23 @@ private:
 /*Overuse Detector Function */
     void UpdateThreshold(double modified_offset, int64_t now_ms);
 
+/*Delay Based Rate Controller Function*/
+    uint32_t ChangeBitrate(uint32_t current_bitrate, char bw_state, uint32_t incoming_bitrate, double noise_var, int64_t now_ms);
+    uint32_t ClampBitrate(uint32_t new_bitrate_bps, uint32_t incoming_bitrate_bps) const;
+    uint32_t MultiplicativeRateIncrease(int64_t now_ms, int64_t last_ms, uint32_t current_bitrate_bps) const;
+    uint32_t AdditiveRateIncrease(int64_t now_ms, int64_t last_ms) const;
+    void UpdateChangePeriod(int64_t now_ms);
+    void UpdateMaxBitRateEstimate(float incoming_bit_rate_kbps);
+    void ChangeState(char bw_state, uint32_t incoming_bitrate, double noise_var, int64_t now_ms);
+    void ChangeRegion(char region);
+
+
 
     void updateMetrics();
     void logStats(uint64_t nowUs) const;
+
+
+/* private variables */
 
     uint64_t m_lastTimeCalcUs;
     bool m_lastTimeCalcValid;
@@ -133,7 +171,26 @@ private:
     double D_prev_offset_;
     double time_over_using_;
     int overuse_counter_;
-    std::string D_hypothesis_;
+    char D_hypothesis_; // O : Overusing, N : Normal, U : Underusing
+
+/*Delay Based Rate Controller*/
+
+    uint32_t min_configured_bitrate_bps_;
+    uint32_t max_configured_bitrate_bps_;
+    uint32_t current_bitrate_bps_;
+    uint32_t latest_incoming_bitrate_bps_;
+    float avg_max_bitrate_kbps_;
+    float var_max_bitrate_kbps_;
+    char rate_control_state_;   // H : Hold, I : Increase, D : Decrease
+    char rate_control_region_;  // M : MaxUnkown, N : NearMax
+    int64_t time_last_bitrate_change_;
+    int64_t time_first_incoming_estimate_;
+    bool bitrate_is_initialized_;
+    float beta_;
+    int64_t rtt_;
+    bool in_experiment_;
+    bool smoothing_experiment_;
+    int last_decrease_;
 
 
 
