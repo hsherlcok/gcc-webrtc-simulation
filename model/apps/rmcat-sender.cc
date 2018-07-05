@@ -450,15 +450,13 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
         }
     }
     // TODO MAYBE THIS PART IS NOT NEEDED.
-    CalcBufferParams (nowUs);
+    // CalcBufferParams (nowUs);
+    const auto r_rate = m_controller->getSendBps();
+    m_rBitrate = r_rate;
 }
 
 void RmcatSender::CalcBufferParams (uint64_t nowUs)
 {
-    const uint32_t delay_rate = m_controller->getDelayBps();
-    const uint32_t loss_rate = m_controller->getLossBps();
-
-    m_rBitrate = std::min<uint32_t> (delay_rate, loss_rate);
     /*
     //Calculate rate shaping buffer parameters
     const auto r_ref = m_controller->getBandwidth (nowUs); // bandwidth in bps
