@@ -83,7 +83,12 @@ void RmcatSender::PauseResume (bool pause)
         Simulator::Cancel (m_sendOversleepEvent);
         m_rateShapingBuf.clear ();
         m_rateShapingBytes = 0;
+
+        m_PacingQ.clear();
+        m_PacingQBytes = 0;
     } else {
+        m_rBitrate = m_initBw;    
+ 
         m_rVin = m_initBw;
         m_rSend = m_initBw;
         m_enqueueEvent = Simulator::ScheduleNow (&RmcatSender::EnqueuePacket, this);
@@ -189,6 +194,7 @@ void RmcatSender::Setup (Ipv4Address destIP,
     }
 
     if (!m_controller) {
+        // m_controller = std::make_shared<rmcat::GccController> ();
         m_controller = std::make_shared<rmcat::DummyController> ();  // TODO Controller.
     } else {
         m_controller->reset ();
@@ -226,6 +232,8 @@ void RmcatSender::StartApplication ()
 
     NS_ASSERT (m_minBw <= m_initBw);
     NS_ASSERT (m_initBw <= m_maxBw);
+    
+    m_rBitrate = m_initBw;
 
     m_rVin = m_initBw;
     m_rSend = m_initBw;
@@ -259,6 +267,7 @@ void RmcatSender::EnqueuePacket ()
     NS_ASSERT (bytesToSend > 0);
     NS_ASSERT (bytesToSend <= DEFAULT_PACKET_SIZE);
 
+    // Push into Pacing Queue Buffer.
     m_PacingQ.push_back (bytesToSend);
     m_PacingQBytes += bytesToSend;
 
@@ -266,8 +275,8 @@ void RmcatSender::EnqueuePacket ()
 //    m_rateShapingBytes += bytesToSend;
 
     NS_LOG_INFO ("RmcatSender::EnqueuePacket, packet enqueued, packet length: " << bytesToSend
-                 << ", buffer size: " << m_rateShapingBuf.size ()
-                 << ", buffer bytes: " << m_rateShapingBytes);
+                 << ", buffer size: " << m_PacingQ.size ()
+                 << ", buffer bytes: " << m_PacingQBytes);
 
     double secsToNextEnqPacket = codec->second;
     Time tNext{Seconds (secsToNextEnqPacket)};
@@ -279,16 +288,15 @@ void RmcatSender::EnqueuePacket ()
         return;
     }
 
-    if (m_rateShapingBuf.size () == 1) {
+    if (m_PacingQ.size () == 1) {
         // Buffer was empty
         const uint64_t nowUs = Simulator::Now ().GetMicroSeconds ();
-        const uint64_t usToNextSentPacket = nowUs < m_nextSendTstmpUs ?
+        const uin	t64_t usToNextSentPacket = nowUs < m_nextSendTstmpUs ?
                                                     m_nextSendTstmpUs - nowUs : 0;
         NS_LOG_INFO ("(Re-)starting the send timer: nowUs " << nowUs
                      << ", bytesToSend " << bytesToSend
                      << ", usToNextSentPacket " << usToNextSentPacket
-                     << ", m_rSend " << m_rSend
-                     << ", m_rVin " << m_rVin
+                     << ", m_rBitrate " << m_rBitrate
                      << ", secsToNextEnqPacket " << secsToNextEnqPacket);
 
         Time tNext{MicroSeconds (usToNextSentPacket)};
@@ -318,8 +326,9 @@ void RmcatSender::SendPacket (uint64_t usSlept)
     m_sendOversleepEvent = Simulator::Schedule (tOver, &RmcatSender::SendOverSleep,
                                                 this, bytesToSend);
 
+    // usToNextSentPacketD = Time to send current data frame.
     // schedule next sendData
-    const double usToNextSentPacketD = double (bytesToSend) * 8. * 1000. * 1000. / m_rSend;
+    const double usToNextSentPacketD = double (bytesToSend) * 8. * 1000. * 1000. / m_rBitrate;
     const uint64_t usToNextSentPacket = uint64_t (usToNextSentPacketD);
 
     if (!USE_BUFFER || m_PacingQ.size () == 0) {
