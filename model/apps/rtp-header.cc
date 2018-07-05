@@ -582,7 +582,7 @@ uint32_t CCFeedbackHeader::Deserialize (Buffer::Iterator start)
         const uint32_t nPaddingBlocks = nMetricBlocks % 2;
         NS_ASSERT (len_left >= nMetricBlocks + nPaddingBlocks);
         uint16_t seq = beginSeq;
-        for (auto i = 0; i < nMetricBlocks; ++i) {
+        for (uint32_t i = 0; i < nMetricBlocks; ++i) {
             const auto octet1 = start.ReadU8 ();
             const auto octet2 = start.ReadU8 ();
             if (RtpHdrGetBit (octet1, 7)) {

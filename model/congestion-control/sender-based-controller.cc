@@ -175,10 +175,10 @@ bool SenderBasedController::processSendPacket(uint64_t txTimestampUs,
 bool SenderBasedController::processFeedback(uint64_t nowUs,
                                             uint16_t sequence,
                                             uint64_t rxTimestampUs,
-                                            uint8_t ecn,
                                             uint64_t l_inter_arrival,
                                             uint64_t l_inter_departure,
-                                            uint64_t l_inter_delay_var) {
+                                            uint64_t l_inter_delay_var,
+					    uint8_t ecn) {
     if (lessThan(m_lastSequence, sequence)) {
         std::cerr << "SenderBasedController::ProcessFeedback,"
                   << " strange sequence: " << sequence
@@ -269,8 +269,9 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     return true;
 }
 
-uint64_t GetPacketTxTimestamp(uint16_t sequence){
-    int i = 0;
+uint64_t SenderBasedController::GetPacketTxTimestamp(uint16_t sequence){
+    uint32_t i = 0;
+    uint32_t qsize = m_inTransitPackets.size();
     for(i = 0; i < qsize; i++){
         if(m_inTransitPackets.at(i).sequence == sequence){
             return m_inTransitPackets.at(i).txTimestampUs;
@@ -278,11 +279,11 @@ uint64_t GetPacketTxTimestamp(uint16_t sequence){
     }
 }
 
-uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){
+uint64_t SenderBasedController::UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){
     uint32_t qsize = m_inTransitPackets.size();
     uint64_t prev_t, now_t;
 
-    int i = 0;
+    uint32_t i = 0;
     for(i = 0; i < qsize; i++){
         if(m_inTransitPackets.at(i).sequence == prev_s){
 	    prev_t = m_inTransitPackets.at(i).txTimestampUs;

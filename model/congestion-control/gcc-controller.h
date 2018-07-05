@@ -79,10 +79,10 @@ public:
     virtual bool processFeedback(uint64_t nowUs,
                                  uint16_t sequence,
                                  uint64_t rxTimestampUs,
-                                 uint8_t ecn=0,
                                  uint64_t l_inter_arrival,
                                  uint64_t l_inter_departure,
-                                 uint64_t l_inter_delay_var);
+                                 uint64_t l_inter_delay_var,
+                                 uint8_t ecn=0);
     /**
      * Simplistic implementation of bandwidth getter. It returns a hard-coded
      * bandwidth value in bits per second

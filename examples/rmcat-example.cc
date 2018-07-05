@@ -226,14 +226,14 @@ int main (int argc, char *argv[])
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 
     int port = 8000;
-    for (size_t i = 0; i < nRmcat; i++) {
+    for (int i = 0; i < nRmcat; i++) {
         auto start = 10. * i;
         auto end = std::max (start + 1., endTime - start);
         InstallApps (nada, nodes.Get (0), nodes.Get (1), port++,
                      initBw, minBw, maxBw, start, end);
     }
 
-    for (size_t i = 0; i < nTcp; i++) {
+    for (int i = 0; i < nTcp; i++) {
         auto start = 17. * i;
         auto end = std::max (start + 1., endTime - start);
         InstallTCP (nodes.Get (0), nodes.Get (1), port++, start, end);
