@@ -97,7 +97,6 @@ public:
     char OveruseDetectorDetect(double offset, double timestamp_delta, int num_of_deltas, int64_t now_ms);
     char State() const;
 
-
 /*Delay Based Rate Controller Function*/
     bool ValidEstimate() const;
     void SetStartBitrate(int start_bitrate_bps);
@@ -114,6 +113,21 @@ public:
 
     int GetNearMaxIncreaseRateBps() const;
     int GetExpectedBandwidthPeriodMs() const;
+
+/*Loss Based Rate Controller Function */
+    void CurrentEstimate(int* bitrate, uint8_t* loss, int64_t* rtt) const;
+
+  	// Call periodically to update estimate.
+  	void UpdateEstimate(int64_t now_ms);
+
+  	// Call when a new delay-based estimate is available.
+  	void UpdateDelayBasedEstimate(int64_t now_ms, uint32_t bitrate_bps);
+
+  	void SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate);
+  	void SetSendBitrate(int bitrate);
+  	void SetMinMaxBitrate(int min_bitrate, int max_bitrate);
+  	int GetMinBitrate() const;
+
 
 
 
@@ -135,11 +149,13 @@ private:
     void ChangeState(char bw_state, uint32_t incoming_bitrate, double noise_var, int64_t now_ms);
     void ChangeRegion(char region);
 
-
-
     void updateMetrics();
     void logStats(uint64_t nowUs) const;
 
+/*Loss Based Rate controller Function*/
+  bool IsInStartPhase(int64_t now_ms) const;
+  void UpdateMinHistory(int64_t now_ms);
+  void CapBitrateToThresholds(int64_t now_ms, uint32_t bitrate_bps);
 
 /* private variables */
 
@@ -193,6 +209,36 @@ private:
     int last_decrease_;
 
 
+   	std::deque<std::pair<int64_t, uint32_t> > min_bitrate_history_;
+
+  	// incoming filters
+  	int lost_packets_since_last_loss_update_;
+  	int expected_packets_since_last_loss_update_;
+
+  	uint32_t current_bitrate_bps_;
+  	uint32_t min_bitrate_configured_;
+  	uint32_t max_bitrate_configured_;
+  	int64_t last_low_bitrate_log_ms_;
+
+  	bool has_decreased_since_last_fraction_loss_;
+  	int64_t last_feedback_ms_;
+  	int64_t last_packet_report_ms_;
+  	int64_t last_timeout_ms_;
+  	uint8_t last_fraction_loss_;
+  	uint8_t last_logged_fraction_loss_;
+  	int64_t last_round_trip_time_ms_;
+
+  	uint32_t bwe_incoming_;
+  	uint32_t delay_based_bitrate_bps_;
+  	int64_t time_last_decrease_ms_;
+  	int64_t first_report_time_ms_;
+  	int initially_lost_packets_;
+  	int bitrate_at_2_seconds_kbps_;
+ 	int64_t last_rtc_event_log_ms_;
+  	bool in_timeout_experiment_;
+  	float low_loss_threshold_;
+  	float high_loss_threshold_;
+  	uint32_t bitrate_threshold_bps_;
 
 };
 

@@ -54,6 +54,23 @@ static const int64_t kDefaultRttMs = 200;
 static const int64_t kMaxFeedbackIntervalMs = 1000;
 static const float kDefaultBackoffFactor = 0.85f;
 
+const int64_t kBweIncreaseIntervalMs = 1000;
+const int64_t kBweDecreaseIntervalMs = 300;
+const int64_t kStartPhaseMs = 2000;
+const int64_t kBweConverganceTimeMs = 20000;
+const int kLimitNumPackets = 20;
+const int kDefaultMaxBitrateBps = 1000000000;
+const int64_t kLowBitrateLogPeriodMs = 10000;
+const int64_t kRtcEventLogPeriodMs = 5000;
+// Expecting that RTCP feedback is sent uniformly within [0.5, 1.5]s intervals.
+const int64_t kFeedbackIntervalMs = 5000;
+const int64_t kFeedbackTimeoutIntervals = 3;
+const int64_t kTimeoutIntervalMs = 1000;
+
+const float kDefaultLowLossThreshold = 0.02f;
+const float kDefaultHighLossThreshold = 0.1f;
+const int kDefaultBitrateThresholdKbps = 0;
+
 GccController::GccController() :
     SenderBasedController{},
     m_lastTimeCalcUs{0},
@@ -83,7 +100,7 @@ GccController::GccController() :
     overuse_counter_(0),
     D_hypothesis_('N'),
 
-    min_configured_bitrate_bps_(congestion_controller::GetMinBitrateBps()),
+    min_configured_bitrate_bps_(500000), //initial value need
     max_configured_bitrate_bps_(30000000),
     current_bitrate_bps_(max_configured_bitrate_bps_),
     latest_incoming_bitrate_bps_(current_bitrate_bps_),
@@ -98,11 +115,239 @@ GccController::GccController() :
     rtt_(kDefaultRttMs),
     in_experiment_(false),  // need initial value
     smoothing_experiment_(false),
-    last_decrease_ =0;
+    last_decrease_(0),
+
+	lost_packets_since_last_loss_update_(0),
+    expected_packets_since_last_loss_update_(0),
+    current_bitrate_bps_(0),
+    last_low_bitrate_log_ms_(-1),
+    has_decreased_since_last_fraction_loss_(false),
+    last_feedback_ms_(-1),
+    last_packet_report_ms_(-1),
+    last_timeout_ms_(-1),
+    last_fraction_loss_(0),
+    dlast_logged_fraction_loss_(0),
+    last_round_trip_time_ms_(0),
+    bwe_incoming_(0),
+    delay_based_bitrate_bps_(0),
+    time_last_decrease_ms_(0),
+    first_report_time_ms_(-1),
+    initially_lost_packets_(0),
+    bitrate_at_2_seconds_kbps_(0),
+    in_timeout_experiment_(false),
+    low_loss_threshold_(kDefaultLowLossThreshold),
+    high_loss_threshold_(kDefaultHighLossThreshold),
+    bitrate_threshold_bps_(1000 * kDefaultBitrateThresholdKbps) 
 
 {}
 
 GccController::~GccController() {}
+
+
+void GccController::SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate) {
+  SetMinMaxBitrate(min_bitrate, max_bitrate);
+  if (send_bitrate > 0)
+    SetSendBitrate(send_bitrate);
+}
+
+void GccController::SetSendBitrate(int bitrate) {
+  delay_based_bitrate_bps_ = 0;  // Reset to avoid being capped by the estimate.
+  CapBitrateToThresholds(Clock::GetRealTimeClock()->TimeInMilliseconds(),
+                        bitrate);	
+  // Clear last sent bitrate history so the new value can be used directly
+  // and not capped.
+  min_bitrate_history_.clear();
+}
+
+void GccController::SetMinMaxBitrate(int min_bitrate,
+                                                   int max_bitrate) {
+  min_bitrate_configured_ =
+      std::max(min_bitrate, congestion_controller::GetMinBitrateBps());
+  if (max_bitrate > 0) {
+    max_bitrate_configured_ =
+        std::max<uint32_t>(min_bitrate_configured_, max_bitrate);
+  } else {
+    max_bitrate_configured_ = kDefaultMaxBitrateBps;
+  }
+}
+
+int GccController::GetMinBitrate() const {
+  return min_bitrate_configured_;
+}
+
+void GccController::CurrentEstimate(int* bitrate,
+                                                  uint8_t* loss,
+                                                  int64_t* rtt) const {
+  *bitrate = current_bitrate_bps_;
+  *loss = last_fraction_loss_;
+  *rtt = last_round_trip_time_ms_;
+}
+
+void GccController::UpdateDelayBasedEstimate(
+    int64_t now_ms,
+    uint32_t bitrate_bps) {
+  delay_based_bitrate_bps_ = bitrate_bps;
+  CapBitrateToThresholds(now_ms, current_bitrate_bps_);
+}
+
+void GccController::UpdateEstimate(int64_t now_ms) {
+  uint32_t new_bitrate = current_bitrate_bps_;
+  // We trust the REMB and/or delay-based estimate during the first 2 seconds if
+  // we haven't had any packet loss reported, to allow startup bitrate probing.
+  if (last_fraction_loss_ == 0 && IsInStartPhase(now_ms)) {
+    new_bitrate = std::max(delay_based_bitrate_bps_, new_bitrate);
+
+    if (new_bitrate != current_bitrate_bps_) {
+      min_bitrate_history_.clear();
+      min_bitrate_history_.push_back(
+          std::make_pair(now_ms, current_bitrate_bps_));
+      CapBitrateToThresholds(now_ms, new_bitrate);
+      dreturn;
+    }
+  }
+  UpdateMinHistory(now_ms);
+  if (last_packet_report_ms_ == -1) {
+    // No feedback received.
+    CapBitrateToThresholds(now_ms, current_bitrate_bps_);
+    return;
+  }
+  int64_t time_since_packet_report_ms = now_ms - last_packet_report_ms_;
+  int64_t time_since_feedback_ms = now_ms - last_feedback_ms_;
+  if (time_since_packet_report_ms < 1.2 * kFeedbackIntervalMs) {
+    // We only care about loss above a given bitrate threshold.
+    float loss = last_fraction_loss_ / 256.0f;
+    // We only make decisions based on loss when the bitrate is above a
+    // threshold. This is a crude way of handling loss which is uncorrelated
+    // to congestion.
+    if (current_bitrate_bps_ < bitrate_threshold_bps_ ||
+        loss <= low_loss_threshold_) {
+      // Loss < 2%: Increase rate by 8% of the min bitrate in the last
+      // kBweIncreaseIntervalMs.
+      // Note that by remembering the bitrate over the last second one can
+      // rampup up one second faster than if only allowed to start ramping
+      // at 8% per second rate now. E.g.:
+      //   If sending a constant 100kbps it can rampup immediatly to 108kbps
+      //   whenever a receiver report is received with lower packet loss.
+      //   If instead one would do: current_bitrate_bps_ *= 1.08^(delta time),
+      //   it would take over one second since the lower packet loss to achieve
+      //   108kbps.
+      new_bitrate = static_cast<uint32_t>(
+          min_bitrate_history_.front().second * 1.08 + 0.5);
+
+      // Add 1 kbps extra, just to make sure that we do not get stuck
+      // (gives a little extra increase at low rates, negligible at higher
+      // rates).
+      new_bitrate += 1000;
+    } else if (current_bitrate_bps_ > bitrate_threshold_bps_) {
+      if (loss <= high_loss_threshold_) {
+        // Loss between 2% - 10%: Do nothing.
+      } else {
+        // Loss > 10%: Limit the rate decreases to once a kBweDecreaseIntervalMs
+        // + rtt.
+        if (!has_decreased_since_last_fraction_loss_ &&
+            (now_ms - time_last_decrease_ms_) >=
+                (kBweDecreaseIntervalMs + last_round_trip_time_ms_)) {
+          time_last_decrease_ms_ = now_ms;
+
+          // Reduce rate:
+          //   newRate = rate * (1 - 0.5*lossRate);
+          //   where packetLoss = 256*lossRate;
+          new_bitrate = static_cast<uint32_t>(
+              (current_bitrate_bps_ *
+               static_cast<double>(512 - last_fraction_loss_)) /
+              512.0);
+          has_decreased_since_last_fraction_loss_ = true;
+        }
+      }
+    }
+  } else if (time_since_feedback_ms >
+                 kFeedbackTimeoutIntervals * kFeedbackIntervalMs &&
+             (last_timeout_ms_ == -1 ||
+              now_ms - last_timeout_ms_ > kTimeoutIntervalMs)) {
+    if (in_timeout_experiment_) {
+      new_bitrate *= 0.8;
+      // Reset accumulators since we've already acted on missing feedback and
+      // shouldn't to act again on these old lost packets.
+      lost_packets_since_last_loss_update_ = 0;
+      expected_packets_since_last_loss_update_ = 0;
+      last_timeout_ms_ = now_ms;
+    }
+  }
+
+  CapBitrateToThresholds(now_ms, new_bitrate);
+}
+
+bool GccController::IsInStartPhase(int64_t now_ms) const {
+  return first_report_time_ms_ == -1 ||
+         now_ms - first_report_time_ms_ < kStartPhaseMs;
+}
+
+void GccController::UpdateMinHistory(int64_t now_ms) {
+  // Remove old data points from history.
+  // Since history precision is in ms, add one so it is able to increase
+  // bitrate if it is off by as little as 0.5ms.
+  while (!min_bitrate_history_.empty() &&
+         now_ms - min_bitrate_history_.front().first + 1 >
+             kBweIncreaseIntervalMs) {
+    min_bitrate_history_.pop_front();
+  }
+
+  // Typical minimum sliding-window algorithm: Pop values higher than current
+  // bitrate before pushing it.
+
+  while (!min_bitrate_history_.empty() &&
+         current_bitrate_bps_ <= min_bitrate_history_.back().second) {
+    min_bitrate_history_.pop_back();
+  }
+
+  min_bitrate_history_.push_back(std::make_pair(now_ms, current_bitrate_bps_));
+}
+
+void GccController::CapBitrateToThresholds(int64_t now_ms,
+                                                         uint32_t bitrate_bps) {
+  if (bwe_incoming_ > 0 && bitrate_bps > bwe_incoming_) {
+    bitrate_bps = bwe_incoming_;
+  }
+  if (delay_based_bitrate_bps_ > 0 && bitrate_bps > delay_based_bitrate_bps_) {
+    bitrate_bps = delay_based_bitrate_bps_;
+  }
+  if (bitrate_bps > max_bitrate_configured_) {
+    bitrate_bps = max_bitrate_configured_;
+  }
+  if (bitrate_bps < min_bitrate_configured_) {
+    if (last_low_bitrate_log_ms_ == -1 ||
+        now_ms - last_low_bitrate_log_ms_ > kLowBitrateLogPeriodMs) {
+      last_low_bitrate_log_ms_ = now_ms;
+    }
+    bitrate_bps = min_bitrate_configured_;
+  }
+
+  if (bitrate_bps != current_bitrate_bps_ ||
+      last_fraction_loss_ != last_logged_fraction_loss_ ||
+      now_ms - last_rtc_event_log_ms_ > kRtcEventLogPeriodMs) {
+    event_log_->Log(rtc::MakeUnique<RtcEventBweUpdateLossBased>(
+        bitrate_bps, last_fraction_loss_,
+        expected_packets_since_last_loss_update_));
+    last_logged_fraction_loss_ = last_fraction_loss_;
+    last_rtc_event_log_ms_ = now_ms;
+  }
+  current_bitrate_bps_ = bitrate_bps;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void GccController::setCurrentBw(float newBw) {
     m_initBw = newBw;
