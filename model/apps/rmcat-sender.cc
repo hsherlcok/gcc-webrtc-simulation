@@ -323,6 +323,7 @@ void RmcatSender::SendPacket (uint64_t usSlept)
                  << ", buffer bytes: " << m_PacingQBytes);
 
     // Synthetic oversleep: random uniform [0% .. 1%]
+    // TODO WHY RAND USED?
     uint64_t oversleepUs = usSlept * (rand () % 100) / 10000;
     Time tOver{MicroSeconds (oversleepUs)};
     m_sendOversleepEvent = Simulator::Schedule (tOver, &RmcatSender::SendOverSleep,
