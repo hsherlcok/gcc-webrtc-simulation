@@ -91,7 +91,8 @@ public:
      */
     virtual float getBandwidth(uint64_t nowUs) const;
 
-	
+	virtual uint32_t getSendBps() const;	
+
 /*Overuse Estimator Function */
     void OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int size_delta, char current_hypothesis, int64_t now_ms);
 	
@@ -131,6 +132,7 @@ public:
   	int GetMinBitrate() const;
 	void UpdatePacketsLost(int packet_lost, int number_of_packets, int64_t now_ms);
 
+	
 
 
 private:

@@ -243,6 +243,7 @@ public:
      * @retval the congestion controller's bandwidth estimation, in bps
      */
     virtual float getBandwidth(uint64_t nowUs) const =0;
+	virtual uint32_t getSendBps() const=0;
 
 protected:
     /** A "less than" operator for unsigned integers that supports wrapping */

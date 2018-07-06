@@ -415,6 +415,10 @@ float GccController::getBandwidth(uint64_t nowUs) const {
     return m_initBw;
 }
 
+uint32_t GccController::getSendBps() const{
+	return current_bitrate_bps_;
+}
+
 void GccController::updateMetrics() {
     uint64_t qdelayUs;
     bool qdelayOK = getCurrentQdelay(qdelayUs);
