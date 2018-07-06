@@ -79,9 +79,9 @@
 #include <limits>
 #include <type_traits>
 
-#include "rtc_base/checks.h"
-#include "rtc_base/numerics/safe_compare.h"
-#include "rtc_base/type_traits.h"
+#include "ns3/checks.h"
+#include "ns3/safe_compare.h"
+#include "ns3/type_traits.h"
 
 namespace rtc {
 

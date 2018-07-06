@@ -62,6 +62,7 @@ def build(bld):
         'model/congestion-control/rtc_base/type_traits.h',
         'model/congestion-control/rtc_base/numeric/safe_compare.h',
         'model/congestion-control/rtc_base/numeric/safe_minmax.h',
+        'model/congestion-control/rtc_base/system/inline.h',
         'model/congestion-control/sender-based-controller.h',
         'model/congestion-control/dummy-controller.h',
         'model/congestion-control/nada-controller.h',

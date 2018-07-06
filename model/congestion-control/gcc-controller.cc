@@ -25,7 +25,7 @@
  * @author Xiaoqing Zhu
  */
 
-#include "sender-based-controller.h"
+#include "gcc-controller.h"
 #include <sstream>
 #include <cassert>
 #include <math.h>
@@ -59,6 +59,7 @@ const int kLimitNumPackets = 20;
 const int kDefaultMaxBitrateBps = 1000000000;
 const int64_t kLowBitrateLogPeriodMs = 10000;
 const int64_t kRtcEventLogPeriodMs = 5000;
+
 // Expecting that RTCP feedback is sent uniformly within [0.5, 1.5]s intervals.
 const int64_t kFeedbackIntervalMs = 5000;
 const int64_t kFeedbackTimeoutIntervals = 3;
