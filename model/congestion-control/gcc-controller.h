@@ -38,8 +38,10 @@
 #include <cstdio>
 #include <cmath>
 #include <string>
+#include <limits>
+#include <cstdio>
 
-#include "rtc_base_checks.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_minmax.h"
 
 
@@ -127,7 +129,7 @@ public:
   	void SetSendBitrate(int bitrate);
   	void SetMinMaxBitrate(int min_bitrate, int max_bitrate);
   	int GetMinBitrate() const;
-
+	void UpdatePacketsLost(int packet_lost, int number_of_packets, int64_t now_ms);
 
 
 

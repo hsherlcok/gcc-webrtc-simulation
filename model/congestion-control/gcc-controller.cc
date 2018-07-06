@@ -35,8 +35,10 @@
 #include <cstdio>
 #include <cmath>
 #include <string>
+#include <limits>
+#include <cstdio>
 
-#include "rtc_base_checks.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_minmax.h"
 
 
@@ -126,7 +128,7 @@ GccController::GccController() :
     last_packet_report_ms_(-1),
     last_timeout_ms_(-1),
     last_fraction_loss_(0),
-    dlast_logged_fraction_loss_(0),
+    last_logged_fraction_loss_(0),
     last_round_trip_time_ms_(0),
     bwe_incoming_(0),
     delay_based_bitrate_bps_(0),
@@ -175,6 +177,37 @@ int GccController::GetMinBitrate() const {
   return min_bitrate_configured_;
 }
 
+void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, int64_t now_ms) {
+  last_feedback_ms_ = now_ms;
+  if (first_report_time_ms_ == -1)
+    first_report_time_ms_ = now_ms;
+
+  // Check sequence number diff and weight loss report
+  if (number_of_packets > 0) {
+    // Accumulate reports.
+    lost_packets_since_last_loss_update_ += packets_lost;
+    expected_packets_since_last_loss_update_ += number_of_packets;
+
+    // Don't generate a loss rate until it can be based on enough packets.
+    if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
+      return;
+
+    has_decreased_since_last_fraction_loss_ = false;
+    int64_t lost_q8 = lost_packets_since_last_loss_update_ << 8;
+    int64_t expected = expected_packets_since_last_loss_update_;
+    last_fraction_loss_ = std::min<int>(lost_q8 / expected, 255);
+
+    // Reset accumulators.
+
+    lost_packets_since_last_loss_update_ = 0;
+    expected_packets_since_last_loss_update_ = 0;
+    last_packet_report_ms_ = now_ms;
+    UpdateEstimate(now_ms);
+  }
+}
+
+
+
 void GccController::CurrentEstimate(int* bitrate,
                                                   uint8_t* loss,
                                                   int64_t* rtt) const {
@@ -202,7 +235,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
       min_bitrate_history_.push_back(
           std::make_pair(now_ms, current_bitrate_bps_));
       CapBitrateToThresholds(now_ms, new_bitrate);
-      dreturn;
+      return;
     }
   }
   UpdateMinHistory(now_ms);
@@ -316,8 +349,8 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
   }
   if (bitrate_bps < min_bitrate_configured_) {
     if (last_low_bitrate_log_ms_ == -1 ||
-        now_ms - last_low_bitrate_log_ms_ > kLowBitrateLogPeriodMs) {
-      last_low_bitrate_log_ms_ = now_ms;
+       now_ms - last_low_bitrate_log_ms_ > kLowBitrateLogPeriodMs) {
+       last_low_bitrate_log_ms_ = now_ms;
     }
     bitrate_bps = min_bitrate_configured_;
   }
@@ -333,19 +366,6 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
   }
   current_bitrate_bps_ = bitrate_bps;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

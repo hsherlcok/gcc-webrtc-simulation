@@ -64,6 +64,10 @@ def build(bld):
         'model/topo/topo.h',
         'model/topo/wired-topo.h',
         'model/topo/wifi-topo.h',
+		'model/congestion-control/rtc_base/checks.h',
+		'model/congestion-control/rtc_base/type_traits.h',
+		'model/congestion-control/rtc_base/numeric/safe_compare.h',
+		'model/congestion-control/rtc_base/numeric/safe_minmax.h',
        ]
 
     if bld.env.ENABLE_EXAMPLES:
