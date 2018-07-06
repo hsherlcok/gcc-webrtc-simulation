@@ -292,7 +292,7 @@ void RmcatSender::EnqueuePacket ()
     if (m_PacingQ.size () == 1) {
         // Buffer was empty
         const uint64_t nowUs = Simulator::Now ().GetMicroSeconds ();
-        const uin	t64_t usToNextSentPacket = nowUs < m_nextSendTstmpUs ?
+        const uint64_t usToNextSentPacket = nowUs < m_nextSendTstmpUs ?
                                                     m_nextSendTstmpUs - nowUs : 0;
         NS_LOG_INFO ("(Re-)starting the send timer: nowUs " << nowUs
                      << ", bytesToSend " << bytesToSend
@@ -389,38 +389,42 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     std::vector<std::pair<uint16_t,
                           CCFeedbackHeader::MetricBlock> > feedback{};
     const bool res = header.GetMetricList (m_ssrc, feedback);
+    auto l_inter_arrival = 0;
+    auto l_inter_departure = 0;
+    auto l_inter_delay_var = 0;
+    bool is_group_changed = false;
+
     NS_ASSERT (res);
     for (auto& item : feedback) {
         const auto sequence = item.first;
         const auto timestampUs = item.second.m_timestampUs;
-	const bool is_group_changed = false;
         if(sequence == m_first_seq){
-            gid = 0;
+            m_gid = 0;
             m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);        
         }
         // 5000micro seconds = BURST_TIME
         if((m_controller->GetPacketTxTimestamp(sequence) - m_prev_group_time) >= 5000){
             // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
-            if(gid == 0){
+            if(m_gid == 0){
 		// First Group
 		m_prev_group_seq = m_prev_seq;
 		m_prev_group_atime = m_prev_time;
 		m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
-		gid += 1;
+		m_gid += 1;
 	    }
 	    else{
 		// Else
 		// Calculate inter variables
-		const auto l_inter_arrival = m_prev_time - m_prev_group_atime;
+		l_inter_arrival = m_prev_time - m_prev_group_atime;
 		// Prefiltering (If inter arrival time is less than BURST_TIME, it is part of current working packet group.)
 		if(l_inter_arrival > 5000){
-		    const auto l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
+		    l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
 	            	
   	            // Calculate Inter Delay Variation
-        	    const auto l_inter_delay_var = l_inter_arrival - l_inter_departure;
+        	    l_inter_delay_var = l_inter_arrival - l_inter_departure;
                     // Prefiltering (If inter delay variation is less than 0, it is part of current working packet group.)
 		    if(l_inter_delay_var >= 0){
-		        gid += 1;
+		        m_gid += 1;
 		        m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
 
 		        m_prev_group_atime = m_prev_time;
@@ -446,10 +450,11 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
         NS_ASSERT (timestampUs <= nowUs);
 
 	// TODO SHOULD MODIFY. UNCLEAR : Does processFeedback only call when group is changed?
-	if(is_group_chaged){
+	if(is_group_changed){
             m_controller->processFeedback (nowUs, sequence, timestampUs, ecn, l_inter_arrival, l_inter_departure, l_inter_delay_var);
         }
     }
+
     // TODO MAYBE THIS PART IS NOT NEEDED.
     // CalcBufferParams (nowUs);
     const auto r_rate = m_controller->getSendBps();
