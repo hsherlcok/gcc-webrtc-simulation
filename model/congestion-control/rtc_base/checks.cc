@@ -62,7 +62,6 @@ RTC_NORETURN void FatalLog(const char* file,
 
   std::ostringstream ss;  // no-presubmit-check TODO(webrtc:8982)
   ss << "\n\n#\n# Fatal error in: " << file << ", line " << line
-     << "\n# last system error: " << LAST_SYSTEM_ERROR
      << "\n# Check failed: " << message << "\n# ";
 
   for (; *fmt != CheckArgType::kEnd; ++fmt) {

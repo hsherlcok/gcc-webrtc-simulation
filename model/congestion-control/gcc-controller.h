@@ -105,7 +105,7 @@ public:
     void SetMinBitrate(int min_bitrate_bps);
     int64_t GetFeedbackInterval() const;
 
-    bool TimeToReduceFurther(int64_t time_now, uint64_t incoming_bitrate_bps) const;
+    bool TimeToReduceFurther(int32_t time_now, uint32_t incoming_bitrate_bps) const;
 
     uint32_t LatestEstimate() const;
     void SetRtt(int64_t rtt);
@@ -125,8 +125,8 @@ public:
   	// Call when a new delay-based estimate is available.
   	void UpdateDelayBasedEstimate(int64_t now_ms, uint32_t bitrate_bps);
 
-  	void SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate);
-  	void SetSendBitrate(int bitrate);
+  	void SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate, int nowms);
+  	void SetSendBitrate(int bitrate, int nowms);
   	void SetMinMaxBitrate(int min_bitrate, int max_bitrate);
   	int GetMinBitrate() const;
 	void UpdatePacketsLost(int packet_lost, int number_of_packets, int64_t now_ms);
@@ -148,7 +148,7 @@ private:
     uint32_t AdditiveRateIncrease(int64_t now_ms, int64_t last_ms) const;
     void UpdateChangePeriod(int64_t now_ms);
     void UpdateMaxBitRateEstimate(float incoming_bit_rate_kbps);
-    void ChangeState(char bw_state, uint32_t incoming_bitrate, double noise_var, int64_t now_ms);
+    void ChangeState(char bw_state, int64_t now_ms);
     void ChangeRegion(char region);
 
     void updateMetrics();

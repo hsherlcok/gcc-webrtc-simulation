@@ -75,10 +75,10 @@ GccController::GccController() :
     m_lastTimeCalcUs{0},
     m_lastTimeCalcValid{false},
     m_QdelayUs{0},
+	m_Pkt{0},
     m_ploss{0},
     m_plr{0.f},
     m_RecvR{0.}, 
-	m_Pkt{0},
 
     num_of_deltas_(0),
     slope_(0),	//need initial value
@@ -119,9 +119,8 @@ GccController::GccController() :
 
 	lost_packets_since_last_loss_update_(0),
     expected_packets_since_last_loss_update_(0),
-	max_bitrate_configured_(max_configured_bitrate_bps_),	
-	min_bitrate_configured_(min_configured_bitrate_bps_),    
-    current_bitrate_bps_(0),
+	min_bitrate_configured_(min_configured_bitrate_bps_),	
+	max_bitrate_configured_(max_configured_bitrate_bps_),    
     last_low_bitrate_log_ms_(-1),
     has_decreased_since_last_fraction_loss_(false),
     last_feedback_ms_(-1),
@@ -146,16 +145,15 @@ GccController::GccController() :
 GccController::~GccController() {}
 
 
-void GccController::SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate) {
+void GccController::SetBitrates(int send_bitrate, int min_bitrate, int max_bitrate, int nowms) {
   SetMinMaxBitrate(min_bitrate, max_bitrate);
   if (send_bitrate > 0)
-    SetSendBitrate(send_bitrate);
+    SetSendBitrate(send_bitrate, nowms);
 }
 
-void GccController::SetSendBitrate(int bitrate) {
+void GccController::SetSendBitrate(int bitrate, int nowms) {
   delay_based_bitrate_bps_ = 0;  // Reset to avoid being capped by the estimate.
-  CapBitrateToThresholds(Clock::GetRealTimeClock()->TimeInMilliseconds(),
-                        bitrate);	
+  CapBitrateToThresholds(nowms, bitrate);	
   // Clear last sent bitrate history so the new value can be used directly
   // and not capped.
   min_bitrate_history_.clear();
@@ -164,7 +162,7 @@ void GccController::SetSendBitrate(int bitrate) {
 void GccController::SetMinMaxBitrate(int min_bitrate,
                                                    int max_bitrate) {
   min_bitrate_configured_ =
-      std::max(min_bitrate, congestion_controller::GetMinBitrateBps());
+      std::max(min_bitrate, GetMinBitrate());
   if (max_bitrate > 0) {
     max_bitrate_configured_ =
         std::max<uint32_t>(min_bitrate_configured_, max_bitrate);
@@ -358,9 +356,6 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
   if (bitrate_bps != current_bitrate_bps_ ||
       last_fraction_loss_ != last_logged_fraction_loss_ ||
       now_ms - last_rtc_event_log_ms_ > kRtcEventLogPeriodMs) {
-    event_log_->Log(rtc::MakeUnique<RtcEventBweUpdateLossBased>(
-        bitrate_bps, last_fraction_loss_,
-        expected_packets_since_last_loss_update_));
     last_logged_fraction_loss_ = last_fraction_loss_;
     last_rtc_event_log_ms_ = now_ms;
   }
@@ -467,7 +462,7 @@ int64_t GccController::GetFeedbackInterval() const {
                         kMaxFeedbackIntervalMs);
 }
 
-bool GccContoller::TimeToReduceFurther(int64_t time_now,
+bool GccController::TimeToReduceFurther(int32_t time_now,
                                           uint32_t incoming_bitrate_bps) const {
   const int64_t bitrate_reduction_interval =
       std::max<int64_t>(std::min<int64_t>(rtt_, 200), 10);
@@ -487,11 +482,11 @@ uint32_t GccController::LatestEstimate() const {
   return current_bitrate_bps_;
 }
 
-void GccContoller::SetRtt(int64_t rtt) {
+void GccController::SetRtt(int64_t rtt) {
   rtt_ = rtt;
 }
 
-uint32_t GccContoller::Update(char bw_state, uint32_t incoming_bitrate, double noise_var,
+uint32_t GccController::Update(char bw_state, uint32_t incoming_bitrate, double noise_var,
                                  int64_t now_ms) {
   // Set the initial bit rate value to what we're receiving the first half
   // second.
@@ -541,7 +536,7 @@ int GccController::GetExpectedBandwidthPeriodMs() const {
     return smoothing_experiment_ ? kMinPeriodMs : kDefaultPeriodMs;
 
   return std::min(kMaxPeriodMs,
-                  std::max<int>(1000 * static_cast<int64_t>(*last_decrease_) /
+                  std::max<int>(1000 * static_cast<int64_t>(last_decrease_) /
                                     increase_rate,
                                 kMinPeriodMs));
 }
@@ -557,7 +552,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
   // we have not yet established our first estimate. By acting on the over-use,
   // we will end up with a valid estimate.
   if (!bitrate_is_initialized_ &&
-      bw_state = 'O')
+      bw_state == 'O')
     return current_bitrate_bps_;
 
   ChangeState(bw_state, now_ms);
@@ -703,13 +698,13 @@ void GccController::ChangeState(char bw_state,
                                   int64_t now_ms) {
   switch (bw_state) {
     case 'N':
-      if (rate_control_state_ == kRcHold) {
+      if (rate_control_state_ == 'H') {
         time_last_bitrate_change_ = now_ms;
         rate_control_state_ = 'I';
       }
       break;
     case 'O':
-      if (rate_control_state_ != kRcDecrease) {
+      if (rate_control_state_ != 'D') {
         rate_control_state_ = 'D';
       }
       break;
@@ -749,7 +744,7 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
 	const double t_ts_delta = t_delta - ts_delta;
 	double fs_delta = size_delta;
 	
-	++num_of_deltas;
+	++num_of_deltas_;
 	if (num_of_deltas_ > kDeltaCounterMax) {
    		num_of_deltas_ = kDeltaCounterMax;
   	}
@@ -869,7 +864,7 @@ char GccController::State() const {
 	return D_hypothesis_;
 }
 
-char GccController::OveruseDetectorDetect(double offset, double timestamp_delta, int num_of_deltas, int64_t now_ms){
+char GccController::OveruseDetectorDetect(double offset, double ts_delta, int num_of_deltas, int64_t now_ms){
 
   if (num_of_deltas < 2) {
     return 'N';
