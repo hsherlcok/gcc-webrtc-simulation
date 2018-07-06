@@ -277,6 +277,7 @@ uint64_t SenderBasedController::GetPacketTxTimestamp(uint16_t sequence){
             return m_inTransitPackets.at(i).txTimestampUs;
         }
     }
+    return -1;
 }
 
 uint64_t SenderBasedController::UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){

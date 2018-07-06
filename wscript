@@ -25,6 +25,7 @@ def build(bld):
         'model/apps/rtp-header.cc',
         'model/syncodecs/syncodecs.cc',
         'model/syncodecs/traces-reader.cc',
+        'model/congestion-control/rtc_base/checks.cc',
         'model/congestion-control/sender-based-controller.cc',
         'model/congestion-control/dummy-controller.cc',
         'model/congestion-control/nada-controller.cc',
@@ -57,6 +58,11 @@ def build(bld):
         'model/apps/rtp-header.h',
         'model/syncodecs/syncodecs.h',
         'model/syncodecs/traces-reader.h',
+        'model/congestion-control/rtc_base/checks.h',
+        'model/congestion-control/rtc_base/type_traits.h',
+        'model/congestion-control/rtc_base/numeric/safe_compare.h',
+        'model/congestion-control/rtc_base/numeric/safe_minmax.h',
+        'model/congestion-control/rtc_base/system/inline.h',
         'model/congestion-control/sender-based-controller.h',
         'model/congestion-control/dummy-controller.h',
         'model/congestion-control/nada-controller.h',
@@ -64,10 +70,6 @@ def build(bld):
         'model/topo/topo.h',
         'model/topo/wired-topo.h',
         'model/topo/wifi-topo.h',
-		'model/congestion-control/rtc_base/checks.h',
-		'model/congestion-control/rtc_base/type_traits.h',
-		'model/congestion-control/rtc_base/numeric/safe_compare.h',
-		'model/congestion-control/rtc_base/numeric/safe_minmax.h',
        ]
 
     if bld.env.ENABLE_EXAMPLES:

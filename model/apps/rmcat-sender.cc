@@ -49,18 +49,18 @@ RmcatSender::RmcatSender ()
 , m_minBw{0}
 , m_maxBw{0}
 , m_paused{false}
-, m_prev_feedback_time{0.}
-, m_groupchanged{false}
 , m_ssrc{0}
 , m_sequence{0}
 , m_first_seq{0}	// First sequence number.
 , m_gid{0}		// Group id
 , m_prev_seq{0}		// Seq number of previous feedback packet
-, m_prev_group_seq{0}   // End Sequence number of previous feedback pkt.
+, m_prev_time{0}
 , m_prev_group_time{0}
 , m_prev_group_atime{0}	// Arrival Time of previous group.
-, m_prev_time{0}
+, m_prev_group_seq{0}   // End Sequence number of previous feedback pkt.
 , m_rtpTsOffset{0}
+, m_prev_feedback_time{0.}
+, m_groupchanged{false}
 , m_socket{NULL}
 , m_enqueueEvent{}
 , m_sendEvent{}
@@ -69,6 +69,7 @@ RmcatSender::RmcatSender ()
 , m_rSend{0.}
 , m_rBitrate{0.}
 , m_rateShapingBytes{0}
+, m_PacingQBytes{0}
 , m_nextSendTstmpUs{0}
 {}
 
