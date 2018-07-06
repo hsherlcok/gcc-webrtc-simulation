@@ -237,7 +237,7 @@ uint32_t RtpHeader::GetTimestamp () const
     return m_timestamp;
 }
 
-void RtpHeader::SetTimestamp (uint32_t timestamp)
+void RtpHeader::SetTimestamp (uint64_t timestamp)
 {
     m_timestamp = timestamp;
 }

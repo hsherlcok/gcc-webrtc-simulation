@@ -28,6 +28,7 @@
  * @author Xiaoqing Zhu
  */
 
+#include "ns3/gcc-controller.h"
 #include "ns3/nada-controller.h"
 #include "ns3/rmcat-sender.h"
 #include "ns3/rmcat-receiver.h"
@@ -42,9 +43,12 @@
 #include "ns3/ipv4-address-helper.h"
 #include "ns3/core-module.h"
 
-const uint32_t RMCAT_DEFAULT_RMIN  =  150000;  // in bps: 150Kbps
-const uint32_t RMCAT_DEFAULT_RMAX  = 1500000;  // in bps: 1.5Mbps
-const uint32_t RMCAT_DEFAULT_RINIT =  150000;  // in bps: 150Kbps
+// Maybe Ignore it 
+const uint32_t GCC_DEFAULT_RMIN  =  150000;  // in bps: 150Kbps
+const uint32_t GCC_DEFAULT_RMAX  = 1500000;  // in bps: 1.5Mbps
+
+// TODO SHOULD MODIFY THIS BUT DON'T KNOW EXACT INITIAL VALUE.
+const uint32_t GCC_DEFAULT_RINIT =  150000;  // in bps: 150Kbps (r_init)
 
 const uint32_t TOPO_DEFAULT_BW     = 1000000;    // in bps: 1Mbps
 const uint32_t TOPO_DEFAULT_PDELAY =      50;    // in ms:   50ms
@@ -149,7 +153,7 @@ static void InstallUDP (Ptr<Node> sender,
     serverApps.Stop (Seconds (stopTime));
 }
 
-static void InstallApps (bool nada,
+static void InstallApps (bool gcc,
                          Ptr<Node> sender,
                          Ptr<Node> receiver,
                          uint16_t port,
@@ -164,14 +168,14 @@ static void InstallApps (bool nada,
     sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
 
-    if (nada) {
+    if (gcc) {
         sendApp->SetController (std::make_shared<rmcat::NadaController> ());
     }
     Ptr<Ipv4> ipv4 = receiver->GetObject<Ipv4> ();
     Ipv4Address receiverIp = ipv4->GetAddress (1, 0).GetLocal ();
     sendApp->Setup (receiverIp, port); // initBw, minBw, maxBw);
 
-    const auto fps = 25.;
+    const auto fps = 30.;		// Set Video Fps.
     auto innerCodec = new syncodecs::StatisticsCodec{fps};
     auto codec = new syncodecs::ShapedPacketizer{innerCodec, DEFAULT_PACKET_SIZE};
     sendApp->SetCodec (std::shared_ptr<syncodecs::Codec>{codec});
@@ -187,19 +191,22 @@ static void InstallApps (bool nada,
 
 int main (int argc, char *argv[])
 {
-    int nRmcat = 1;
+    // Number of Flows 
+    int nWebRTC = 1;
     int nTcp = 0;
     int nUdp = 0;
+
     bool log = false;
-    bool nada = true;
+    bool gcc = true;
+    
     std::string strArg  = "strArg default";
 
     CommandLine cmd;
-    cmd.AddValue ("rmcat", "Number of RMCAT (NADA) flows", nRmcat);
+    cmd.AddValue ("webrtc", "Number of WebRTC (GCC) flows", nWebRTC);
     cmd.AddValue ("tcp", "Number of TCP flows", nTcp);
-    cmd.AddValue ("udp", "Number of UDP flows", nUdp);
+    cmd.AddValue ("udp",  "Number of UDP flows", nUdp);
     cmd.AddValue ("log", "Turn on logs", log);
-    cmd.AddValue ("nada", "true: use NADA, false: use dummy", nada);
+    cmd.AddValue ("gcc", "true: use GCC, false: use dummy", gcc);   // Default is declared in rmcat-sender.cc
     cmd.Parse (argc, argv);
 
     if (log) {
@@ -210,26 +217,26 @@ int main (int argc, char *argv[])
 
     // configure default TCP parameters
     Config::SetDefault ("ns3::TcpSocket::DelAckCount", UintegerValue (0));
-    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue ("ns3::TcpNewReno"));
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue ("ns3::TcpNewReno"));    // Tcp Type
     Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (1000));
 
     const uint64_t linkBw   = TOPO_DEFAULT_BW;
     const uint32_t msDelay  = TOPO_DEFAULT_PDELAY;
     const uint32_t msQDelay = TOPO_DEFAULT_QDELAY;
 
-    const float minBw =  RMCAT_DEFAULT_RMIN;
-    const float maxBw =  RMCAT_DEFAULT_RMAX;
-    const float initBw = RMCAT_DEFAULT_RINIT;
+    const float minBw =  GCC_DEFAULT_RMIN;
+    const float maxBw =  GCC_DEFAULT_RMAX;
+    const float initBw = GCC_DEFAULT_RINIT;
 
     const float endTime = 300.;
 
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 
     int port = 8000;
-    for (int i = 0; i < nRmcat; i++) {
+    for (int i = 0; i < nWebRTC; i++) {
         auto start = 10. * i;
         auto end = std::max (start + 1., endTime - start);
-        InstallApps (nada, nodes.Get (0), nodes.Get (1), port++,
+        InstallApps (gcc, nodes.Get (0), nodes.Get (1), port++,
                      initBw, minBw, maxBw, start, end);
     }
 
@@ -240,7 +247,7 @@ int main (int argc, char *argv[])
     }
 
     // UDP parameters
-    const uint64_t bandwidth = RMCAT_DEFAULT_RMAX / 4;
+    const uint64_t bandwidth = GCC_DEFAULT_RMAX / 4;
     const uint32_t pktSize = DEFAULT_PACKET_SIZE;
 
     for (int i = 0; i < nUdp; i++) {

@@ -38,7 +38,7 @@
 
 #include <sys/stat.h>
 
-NS_LOG_COMPONENT_DEFINE ("RmcatSender");
+NS_LOG_COMPONENT_DEFINE ("GccSender");
 
 namespace ns3 {
 
@@ -205,6 +205,7 @@ void RmcatSender::Setup (Ipv4Address destIP,
     m_destPort = destPort;
 }
 
+// Set Functions
 void RmcatSender::SetRinit (float r)
 {
     m_initBw = r;
@@ -262,7 +263,7 @@ void RmcatSender::StopApplication ()
 void RmcatSender::EnqueuePacket ()
 {
     syncodecs::Codec& codec = *m_codec;
-    codec.setTargetRate (m_rVin);	// Media rate.
+    codec.setTargetRate (m_rBitrate);	// Media rate.
     ++codec; // Advance codec/packetizer to next frame/packet
     const auto bytesToSend = codec->first.size ();
     NS_ASSERT (bytesToSend > 0);
@@ -351,9 +352,8 @@ void RmcatSender::SendOverSleep (uint32_t bytesToSend) {
     ns3::RtpHeader header{96}; // 96: dynamic payload type, according to RFC 3551
     header.SetSequence (m_sequence++);
     NS_ASSERT (nowUs >= 0);
-    // Most video payload types in RFC 3551, Table 5, use a 90 KHz clock
-    // Therefore, assuming 90 KHz clock for RTP timestamps
-    header.SetTimestamp (m_rtpTsOffset + uint32_t (nowUs * 90 / 1000));;
+    
+    header.SetTimestamp (Simulator::Now ().GetMicroSeconds());
     header.SetSsrc (m_ssrc);
 
     auto packet = Create<Packet> (bytesToSend);

@@ -19,4 +19,4 @@
 
 def build(bld):
     obj = bld.create_ns3_program('rmcat-example', ['ns3-rmcat'])
-    obj.source = 'rmcat-example.cc',
+    obj.source = 'gcc-example.cc',

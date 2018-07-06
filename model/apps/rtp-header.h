@@ -81,7 +81,7 @@ public:
     uint32_t GetSsrc () const;
     void SetSsrc (uint32_t ssrc);
     uint32_t GetTimestamp () const;
-    void SetTimestamp (uint32_t timestamp);
+    void SetTimestamp (uint64_t timestamp);
     const std::set<uint32_t>& GetCsrcs () const;
     bool AddCsrc (uint32_t csrc);
 
