@@ -217,7 +217,6 @@ private:
   	int lost_packets_since_last_loss_update_;
   	int expected_packets_since_last_loss_update_;
 
-  	uint32_t current_bitrate_bps_;
   	uint32_t min_bitrate_configured_;
   	uint32_t max_bitrate_configured_;
   	int64_t last_low_bitrate_log_ms_;

@@ -368,7 +368,7 @@ bool SenderBasedController::getCurrentRTT(uint64_t& rttUs) const {
     return true;
 }
 
-bool SenderBasedController::getPktLossInfo(uint32_t& nLoss, float& plr) const {
+bool SenderBasedController::getPktLossInfo(uint32_t& nLoss, float& plr, uint32_t& nPkt) const {
     if (m_packetHistory.size() < MIN_PACKET_LOGLEN) {
         std::cerr << "SenderBasedController::getPktLossInfo,"
                   << " packet history too short: "
@@ -383,6 +383,7 @@ bool SenderBasedController::getPktLossInfo(uint32_t& nLoss, float& plr) const {
     assert(seqSpan >= m_packetHistory.size());
     nLoss = seqSpan - m_packetHistory.size();
     plr = float(nLoss) / float(seqSpan);
+	nPkt = seqSpan;
     return true;
 }
 

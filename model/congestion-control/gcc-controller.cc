@@ -26,6 +26,7 @@
  */
 
 #include "sender-based-controller.h"
+#include "gcc-controller.h"
 #include <sstream>
 #include <cassert>
 #include <math.h>
@@ -119,6 +120,8 @@ GccController::GccController() :
     smoothing_experiment_(false),
     last_decrease_(0),
 
+	max_bitrate_configured_(max_configured_bitrate_bps_),
+	min_bitrate_configured_(min_configured_bitrate_bps_),
 	lost_packets_since_last_loss_update_(0),
     expected_packets_since_last_loss_update_(0),
     current_bitrate_bps_(0),

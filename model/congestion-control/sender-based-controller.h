@@ -313,7 +313,7 @@ protected:
      *         calculate the metrics (output parameter is not valid). True
      *         otherwise
      */
-    bool getPktLossInfo(uint32_t& nLoss, float& plr) const;
+    bool getPktLossInfo(uint32_t& nLoss, float& plr, uint32_t& nPkt) const;
 
     /**
      * Calculate current rate at which the receiver is receiving the media
