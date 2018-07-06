@@ -43,8 +43,8 @@ RTC_NORETURN void rtc_FatalMessage(const char* file, int line, const char* msg);
 #include <sstream>
 #include <string>
 
-#include "rtc_base/numerics/safe_compare.h"
-#include "rtc_base/system/inline.h"
+#include "numeric/safe_compare.h"
+#include "system/inline.h"
 
 // The macros here print a message to stderr and abort under various
 // conditions. All will accept additional stream messages. For example:

@@ -38,11 +38,6 @@
 #include <limits>
 #include <cstdio>
 
-#include "rtc_base/checks.h"
-#include "rtc_base/numerics/safe_minmax.h"
-
-
-
 namespace rmcat {
 
 enum { kMinFramePeriodHistoryLength = 60 };

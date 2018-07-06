@@ -243,7 +243,7 @@ int main (int argc, char *argv[])
     const uint64_t bandwidth = RMCAT_DEFAULT_RMAX / 4;
     const uint32_t pktSize = DEFAULT_PACKET_SIZE;
 
-    for (size_t i = 0; i < nUdp; i++) {
+    for (int i = 0; i < nUdp; i++) {
         auto start = 23. * i;
         auto end = std::max (start + 1., endTime - start);
         InstallUDP (nodes.Get (0), nodes.Get (1), port++,

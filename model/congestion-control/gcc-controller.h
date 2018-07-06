@@ -41,8 +41,8 @@
 #include <limits>
 #include <cstdio>
 
-#include "rtc_base/checks.h"
-#include "rtc_base/numerics/safe_minmax.h"
+#include "ns3/checks.h"
+#include "ns3/safe_minmax.h"
 
 
 
