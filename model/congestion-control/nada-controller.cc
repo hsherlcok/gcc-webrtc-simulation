@@ -198,6 +198,9 @@ float NadaController::getBandwidth(uint64_t nowUs) const {
     return m_currBw;
 }
 
+uint32_t NadaController::getSendBps() const{
+	return 0;
+}
 
 /**
  * The following implements the core congestion

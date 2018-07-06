@@ -74,6 +74,7 @@ public:
      * bandwidth value in bits per second
      */
     virtual float getBandwidth(uint64_t nowUs) const;
+	virtual uint32_t getSendBps() const;
 
 private:
     void updateMetrics();

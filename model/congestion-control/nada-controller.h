@@ -75,6 +75,7 @@ public:
 
     /** NADA's realization of the #getBandwidth API */
     virtual float getBandwidth(uint64_t nowUs) const;
+	virtual uint32_t getSendBps() const;
 
 private:
 

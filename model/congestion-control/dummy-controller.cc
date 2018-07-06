@@ -90,6 +90,10 @@ float DummyController::getBandwidth(uint64_t nowUs) const {
     return m_initBw;
 }
 
+uint32_t DummyController::getSendBps() const{
+	return 0;
+}
+
 void DummyController::updateMetrics() {
     uint64_t qdelayUs;
     bool qdelayOK = getCurrentQdelay(qdelayUs);
