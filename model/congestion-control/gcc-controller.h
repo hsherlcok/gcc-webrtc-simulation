@@ -165,7 +165,8 @@ private:
     bool m_lastTimeCalcValid;
 
     uint64_t m_QdelayUs; /**< estimated queuing delay in microseconds */
-    uint32_t m_ploss;  /**< packet loss count within configured window */
+    uint32_t m_Pkt;
+	uint32_t m_ploss;  /**< packet loss count within configured window */
     float m_plr;       /**< packet loss ratio within packet history window */
     float m_RecvR;     /**< updated receiving rate in bps */
 	

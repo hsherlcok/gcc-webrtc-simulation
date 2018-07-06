@@ -99,9 +99,9 @@ void DummyController::updateMetrics() {
     bool rrateOK = getCurrentRecvRate(rrate);
     if (rrateOK) m_RecvR = rrate;
 
-    uint32_t nLoss;
+    uint32_t nLoss, nPkt;
     float plr;
-    bool plrOK = getPktLossInfo(nLoss, plr);
+    bool plrOK = getPktLossInfo(nLoss, plr, nPkt);
     if (plrOK) {
         m_ploss = nLoss;
         m_plr = plr;

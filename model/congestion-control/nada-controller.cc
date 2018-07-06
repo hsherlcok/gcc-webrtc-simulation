@@ -241,7 +241,8 @@ void NadaController::updateMetrics(uint64_t nowUs) {
 
     float plr = 0.f;
     uint32_t nLoss = 0;
-    bool plrOK = getPktLossInfo(nLoss, plr);
+	uint32_t nPkt = 0;
+    bool plrOK = getPktLossInfo(nLoss, plr, nPkt);
     if (plrOK) {
         m_ploss = nLoss;
         // Exponential filtering of loss stats

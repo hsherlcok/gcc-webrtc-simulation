@@ -78,6 +78,7 @@ GccController::GccController() :
     m_ploss{0},
     m_plr{0.f},
     m_RecvR{0.}, 
+	m_Pkt{0},
 
     num_of_deltas_(0),
     slope_(0),	//need initial value
@@ -378,7 +379,8 @@ void GccController::reset() {
 
     m_QdelayUs = 0;
     m_ploss = 0;
-    m_plr = 0.f;
+    m_Pkt = 0;
+	m_plr = 0.f;
     m_RecvR = 0.;
 
     SenderBasedController::reset();
@@ -427,11 +429,13 @@ void GccController::updateMetrics() {
     bool rrateOK = getCurrentRecvRate(rrate);
     if (rrateOK) m_RecvR = rrate;
 
-    uint32_t nLoss;
+    uint32_t nLoss, nPkt;
     float plr;
-    bool plrOK = getPktLossInfo(nLoss, plr);
+    bool plrOK = getPktLossInfo(nLoss, plr, nPkt);
     if (plrOK) {
+		
         m_ploss = nLoss;
+		m_Pkt = nPkt;
         m_plr = plr;
     }
 }
