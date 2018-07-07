@@ -37,12 +37,12 @@
 
 namespace ns3 {
 
-class RmcatSender: public Application
+class GccSender: public Application
 {
 public:
 
-    RmcatSender ();
-    virtual ~RmcatSender ();
+    GccSender ();
+    virtual ~GccSender ();
 
     void PauseResume (bool pause);
 
@@ -62,10 +62,10 @@ private:
     virtual void StopApplication ();
 
     void EnqueuePacket ();
-    void SendPacket (uint64_t msSlept);
-    void SendOverSleep (uint16_t seq, int64_t nowUs, uint32_t bytesToSend);
+    void SendPacket (uint64_t usSlept);
+    void SendOverSleep (uint32_t bytesToSend);
     void RecvPacket (Ptr<Socket> socket);
-    void CalcBufferParams (uint64_t now);
+    void CalcBufferParams (uint64_t nowUs);
 
 private:
     std::shared_ptr<syncodecs::Codec> m_codec;
@@ -78,7 +78,16 @@ private:
     bool m_paused;
     uint32_t m_ssrc;
     uint16_t m_sequence;
+    uint16_t m_first_seq;
+    uint32_t m_gid;
+    uint32_t m_prev_seq;		// Sequence number of previous feedback pkt
+    uint64_t m_prev_time;	        // Timestmp of previous feedback pkt
+    uint64_t m_prev_group_time;
+    uint64_t m_prev_group_atime;    // Arrival time of previous group
+    uint32_t m_prev_group_seq;	// End Sequnce number of previous feedback pkt
     uint32_t m_rtpTsOffset;
+    uint64_t m_prev_feedback_time;
+    bool m_groupchanged;
     Ptr<Socket> m_socket;
     EventId m_enqueueEvent;
     EventId m_sendEvent;
@@ -86,9 +95,12 @@ private:
 
     double m_rVin; //bps
     double m_rSend; //bps
+    double m_rBitrate;  // Target Bit Rate.
     std::deque<uint32_t> m_rateShapingBuf;
+    std::deque<uint32_t> m_PacingQ;
     uint32_t m_rateShapingBytes;
-    uint64_t m_nextSendTstmp;
+    uint32_t m_PacingQBytes;
+    uint64_t m_nextSendTstmpUs;
 };
 
 }

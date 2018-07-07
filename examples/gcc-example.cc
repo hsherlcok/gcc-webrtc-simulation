@@ -163,8 +163,8 @@ static void InstallApps (bool gcc,
                          float startTime,
                          float stopTime)
 {
-    Ptr<RmcatSender> sendApp = CreateObject<RmcatSender> ();
-    Ptr<RmcatReceiver> recvApp = CreateObject<RmcatReceiver> ();
+    Ptr<GccSender> sendApp = CreateObject<GccSender> ();
+    Ptr<GccReceiver> recvApp = CreateObject<GccReceiver> ();
     sender->AddApplication (sendApp);
     receiver->AddApplication (recvApp);
 
@@ -210,7 +210,7 @@ int main (int argc, char *argv[])
     cmd.Parse (argc, argv);
 
     if (log) {
-        LogComponentEnable ("RmcatSender", LOG_INFO);
+        LogComponentEnable ("GccSender", LOG_INFO);
         LogComponentEnable ("RmcatReceiver", LOG_INFO);
         LogComponentEnable ("Packet", LOG_FUNCTION);
     }

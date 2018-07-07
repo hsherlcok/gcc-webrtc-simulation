@@ -22,6 +22,8 @@ def build(bld):
     module.source = [
         'model/apps/rmcat-sender.cc',
         'model/apps/rmcat-receiver.cc',
+        'model/apps/gcc-sender.cc',
+        'model/apps/gcc-receiver.cc',
         'model/apps/rtp-header.cc',
         'model/syncodecs/syncodecs.cc',
         'model/syncodecs/traces-reader.cc',
@@ -55,6 +57,8 @@ def build(bld):
         'model/apps/rmcat-constants.h',
         'model/apps/rmcat-sender.h',
         'model/apps/rmcat-receiver.h',
+        'model/apps/gcc-sender.h',
+        'model/apps/gcc-receiver.h',
         'model/apps/rtp-header.h',
         'model/syncodecs/syncodecs.h',
         'model/syncodecs/traces-reader.h',

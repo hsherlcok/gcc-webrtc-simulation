@@ -1,4 +1,4 @@
-/******************************************************************************
+/*******************************************************************************
  * Copyright 2016-2017 Cisco Systems, Inc.                                    *
  *                                                                            *
  * Licensed under the Apache License, Version 2.0 (the "License");            *
@@ -34,10 +34,11 @@
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 #include "ns3/log.h"
+#include "ns3/gcc-controller.h"
 
 #include <sys/stat.h>
 
-NS_LOG_COMPONENT_DEFINE ("RmcatSender");
+NS_LOG_COMPONENT_DEFINE ("GccSender");
 
 namespace ns3 {
 
@@ -50,15 +51,26 @@ RmcatSender::RmcatSender ()
 , m_paused{false}
 , m_ssrc{0}
 , m_sequence{0}
+, m_first_seq{0}	// First sequence number.
+, m_gid{0}		// Group id
+, m_prev_seq{0}		// Seq number of previous feedback packet
+, m_prev_time{0}
+, m_prev_group_time{0}
+, m_prev_group_atime{0}	// Arrival Time of previous group.
+, m_prev_group_seq{0}   // End Sequence number of previous feedback pkt.
 , m_rtpTsOffset{0}
+, m_prev_feedback_time{0.}
+, m_groupchanged{false}
 , m_socket{NULL}
 , m_enqueueEvent{}
 , m_sendEvent{}
 , m_sendOversleepEvent{}
 , m_rVin{0.}
 , m_rSend{0.}
+, m_rBitrate{0.}
 , m_rateShapingBytes{0}
-, m_nextSendTstmp{0}
+, m_PacingQBytes{0}
+, m_nextSendTstmpUs{0}
 {}
 
 RmcatSender::~RmcatSender () {}
@@ -72,11 +84,16 @@ void RmcatSender::PauseResume (bool pause)
         Simulator::Cancel (m_sendOversleepEvent);
         m_rateShapingBuf.clear ();
         m_rateShapingBytes = 0;
+
+        m_PacingQ.clear();
+        m_PacingQBytes = 0;
     } else {
+        m_rBitrate = m_initBw;    
+ 
         m_rVin = m_initBw;
         m_rSend = m_initBw;
         m_enqueueEvent = Simulator::ScheduleNow (&RmcatSender::EnqueuePacket, this);
-        m_nextSendTstmp = 0;
+        m_nextSendTstmpUs = 0;
     }
     m_paused = pause;
 }
@@ -178,7 +195,8 @@ void RmcatSender::Setup (Ipv4Address destIP,
     }
 
     if (!m_controller) {
-        m_controller = std::make_shared<rmcat::DummyController> ();
+        // m_controller = std::make_shared<rmcat::GccController> ();
+        m_controller = std::make_shared<rmcat::DummyController> ();  // TODO Controller.
     } else {
         m_controller->reset ();
     }
@@ -187,6 +205,7 @@ void RmcatSender::Setup (Ipv4Address destIP,
     m_destPort = destPort;
 }
 
+// Set Functions
 void RmcatSender::SetRinit (float r)
 {
     m_initBw = r;
@@ -210,10 +229,13 @@ void RmcatSender::StartApplication ()
     m_ssrc = rand ();
     // RTP initial values for sequence number and timestamp SHOULD be random (RFC 3550)
     m_sequence = rand ();
+    m_first_seq = m_sequence;
     m_rtpTsOffset = rand ();
 
     NS_ASSERT (m_minBw <= m_initBw);
     NS_ASSERT (m_initBw <= m_maxBw);
+    
+    m_rBitrate = m_initBw;
 
     m_rVin = m_initBw;
     m_rSend = m_initBw;
@@ -226,7 +248,7 @@ void RmcatSender::StartApplication ()
     m_socket->SetRecvCallback (MakeCallback (&RmcatSender::RecvPacket, this));
 
     m_enqueueEvent = Simulator::Schedule (Seconds (0.0), &RmcatSender::EnqueuePacket, this);
-    m_nextSendTstmp = 0;
+    m_nextSendTstmpUs = 0;
 }
 
 void RmcatSender::StopApplication ()
@@ -241,94 +263,98 @@ void RmcatSender::StopApplication ()
 void RmcatSender::EnqueuePacket ()
 {
     syncodecs::Codec& codec = *m_codec;
-    codec.setTargetRate (m_rVin);
+    codec.setTargetRate (m_rBitrate);	// Media rate.
     ++codec; // Advance codec/packetizer to next frame/packet
     const auto bytesToSend = codec->first.size ();
     NS_ASSERT (bytesToSend > 0);
     NS_ASSERT (bytesToSend <= DEFAULT_PACKET_SIZE);
 
-    m_rateShapingBuf.push_back (bytesToSend);
-    m_rateShapingBytes += bytesToSend;
+    // Push into Pacing Queue Buffer.
+    m_PacingQ.push_back (bytesToSend);
+    m_PacingQBytes += bytesToSend;
+
+//    m_rateShapingBuf.push_back (bytesToSend);
+//    m_rateShapingBytes += bytesToSend;
 
     NS_LOG_INFO ("RmcatSender::EnqueuePacket, packet enqueued, packet length: " << bytesToSend
-                 << ", buffer size: " << m_rateShapingBuf.size ()
-                 << ", buffer bytes: " << m_rateShapingBytes);
+                 << ", buffer size: " << m_PacingQ.size ()
+                 << ", buffer bytes: " << m_PacingQBytes);
 
-    auto secsToNextEnqPacket = codec->second;
+    double secsToNextEnqPacket = codec->second;
     Time tNext{Seconds (secsToNextEnqPacket)};
     m_enqueueEvent = Simulator::Schedule (tNext, &RmcatSender::EnqueuePacket, this);
 
     if (!USE_BUFFER) {
         m_sendEvent = Simulator::ScheduleNow (&RmcatSender::SendPacket, this,
-                                              secsToNextEnqPacket * 1000.);
+                                              secsToNextEnqPacket * 1000. * 1000.);
         return;
     }
 
-    if (m_rateShapingBuf.size () == 1) {
+    if (m_PacingQ.size () == 1) {
         // Buffer was empty
-        const uint64_t now = Simulator::Now ().GetMilliSeconds ();
-        const uint64_t msToNextSentPacket = now < m_nextSendTstmp ?
-                                                    m_nextSendTstmp - now : 0;
-        NS_LOG_INFO ("(Re-)starting the send timer: now " << now
+        const uint64_t nowUs = Simulator::Now ().GetMicroSeconds ();
+        const uint64_t usToNextSentPacket = nowUs < m_nextSendTstmpUs ?
+                                                    m_nextSendTstmpUs - nowUs : 0;
+        NS_LOG_INFO ("(Re-)starting the send timer: nowUs " << nowUs
                      << ", bytesToSend " << bytesToSend
-                     << ", msToNextSentPacket " << msToNextSentPacket
-                     << ", m_rSend " << m_rSend
-                     << ", m_rVin " << m_rVin
+                     << ", usToNextSentPacket " << usToNextSentPacket
+                     << ", m_rBitrate " << m_rBitrate
                      << ", secsToNextEnqPacket " << secsToNextEnqPacket);
 
-        Time tNext{MilliSeconds (msToNextSentPacket)};
-        m_sendEvent = Simulator::Schedule (tNext, &RmcatSender::SendPacket, this, msToNextSentPacket);
+        Time tNext{MicroSeconds (usToNextSentPacket)};
+        m_sendEvent = Simulator::Schedule (tNext, &RmcatSender::SendPacket, this, usToNextSentPacket);
     }
 }
 
-void RmcatSender::SendPacket (uint64_t msSlept)
+void RmcatSender::SendPacket (uint64_t usSlept)
 {
-    NS_ASSERT (m_rateShapingBuf.size () > 0);
-    NS_ASSERT (m_rateShapingBytes < MAX_QUEUE_SIZE_SANITY);
+    NS_ASSERT (m_PacingQ.size () > 0);
+    NS_ASSERT (m_PacingQBytes < MAX_QUEUE_SIZE_SANITY);
 
-    const auto bytesToSend = m_rateShapingBuf.front ();
+    const auto bytesToSend = m_PacingQ.front ();
     NS_ASSERT (bytesToSend > 0);
     NS_ASSERT (bytesToSend <= DEFAULT_PACKET_SIZE);
-    m_rateShapingBuf.pop_front ();
-    NS_ASSERT (m_rateShapingBytes >= bytesToSend);
-    m_rateShapingBytes -= bytesToSend;
-
-    const auto nowUs = Simulator::Now ().GetMicroSeconds ();
+    m_PacingQ.pop_front ();
+    NS_ASSERT (m_PacingQBytes >= bytesToSend);
+    m_PacingQBytes -= bytesToSend;
 
     NS_LOG_INFO ("RmcatSender::SendPacket, packet dequeued, packet length: " << bytesToSend
-                 << ", buffer size: " << m_rateShapingBuf.size ()
-                 << ", buffer bytes: " << m_rateShapingBytes);
+                 << ", buffer size: " << m_PacingQ.size ()
+                 << ", buffer bytes: " << m_PacingQBytes);
 
     // Synthetic oversleep: random uniform [0% .. 1%]
-    uint64_t oversleepMs = msSlept * (rand () % 100) / 10000; // TODO (next patch): change to Us
-    Time tOver{MilliSeconds (oversleepMs)};
+    // TODO WHY RAND USED?
+    uint64_t oversleepUs = usSlept * (rand () % 100) / 10000;
+    Time tOver{MicroSeconds (oversleepUs)};
     m_sendOversleepEvent = Simulator::Schedule (tOver, &RmcatSender::SendOverSleep,
-                                                this, m_sequence, nowUs, bytesToSend);
+                                                this, bytesToSend);
 
-    m_controller->processSendPacket (nowUs / 1000, m_sequence++, bytesToSend); // TODO (next patch): change param to Us
-
+    // usToNextSentPacketD = Time to send current data frame.
     // schedule next sendData
-    const double msToNextSentPacketD = double (bytesToSend) * 8. * 1000. / m_rSend;
-    const uint64_t msToNextSentPacket = uint64_t (msToNextSentPacketD);
+    const double usToNextSentPacketD = double (bytesToSend) * 8. * 1000. * 1000. / m_rBitrate;
+    const uint64_t usToNextSentPacket = uint64_t (usToNextSentPacketD);
 
-    if (!USE_BUFFER || m_rateShapingBuf.size () == 0) {
+    if (!USE_BUFFER || m_PacingQ.size () == 0) {
         // Buffer became empty
-        m_nextSendTstmp = nowUs / 1000 + msToNextSentPacket;
+        const auto nowUs = Simulator::Now ().GetMicroSeconds ();
+        m_nextSendTstmpUs = nowUs + usToNextSentPacket;
         return;
     }
 
-    Time tNext{MilliSeconds (msToNextSentPacket)};
-    m_sendEvent = Simulator::Schedule (tNext, &RmcatSender::SendPacket, this, msToNextSentPacket);
+    Time tNext{MicroSeconds (usToNextSentPacket)};
+    m_sendEvent = Simulator::Schedule (tNext, &RmcatSender::SendPacket, this, usToNextSentPacket);
 }
 
-void RmcatSender::SendOverSleep (uint16_t seq, int64_t nowUs, uint32_t bytesToSend) {
+void RmcatSender::SendOverSleep (uint32_t bytesToSend) {
+    const auto nowUs = Simulator::Now ().GetMicroSeconds ();
+
+    m_controller->processSendPacket (nowUs, m_sequence, bytesToSend);
 
     ns3::RtpHeader header{96}; // 96: dynamic payload type, according to RFC 3551
-    header.SetSequence (seq);
+    header.SetSequence (m_sequence++);
     NS_ASSERT (nowUs >= 0);
-    // Most video payload types in RFC 3551, Table 5, use a 90 KHz clock
-    // Therefore, assuming 90 KHz clock for RTP timestamps
-    header.SetTimestamp (m_rtpTsOffset + uint32_t (nowUs * 90 / 1000));;
+    
+    header.SetTimestamp (Simulator::Now ().GetMicroSeconds());
     header.SetSsrc (m_ssrc);
 
     auto packet = Create<Packet> (bytesToSend);
@@ -343,7 +369,7 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     Address remoteAddr;
     auto Packet = m_socket->RecvFrom (remoteAddr);
     NS_ASSERT (Packet);
-
+    
     auto rIPAddress = InetSocketAddress::ConvertFrom (remoteAddr).GetIpv4 ();
     auto rport = InetSocketAddress::ConvertFrom (remoteAddr).GetPort ();
     NS_ASSERT (rIPAddress == m_destIP);
@@ -358,27 +384,89 @@ void RmcatSender::RecvPacket (Ptr<Socket> socket)
     header.GetSsrcList (ssrcList);
     if (ssrcList.count (m_ssrc) == 0) {
         NS_LOG_INFO ("RmcatSender::Received Feedback packet with no data for SSRC " << m_ssrc);
-        CalcBufferParams (nowUs / 1000); // TODO (next patch): Change param to Us
+        CalcBufferParams (nowUs);
         return;
     }
     std::vector<std::pair<uint16_t,
                           CCFeedbackHeader::MetricBlock> > feedback{};
     const bool res = header.GetMetricList (m_ssrc, feedback);
+    auto l_inter_arrival = 0;
+    auto l_inter_departure = 0;
+    auto l_inter_delay_var = 0;
+    bool is_group_changed = false;
+
     NS_ASSERT (res);
     for (auto& item : feedback) {
         const auto sequence = item.first;
         const auto timestampUs = item.second.m_timestampUs;
+        if(sequence == m_first_seq){
+            m_gid = 0;
+            m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);        
+        }
+        // 5000micro seconds = BURST_TIME
+        if((m_controller->GetPacketTxTimestamp(sequence) - m_prev_group_time) >= 5000){
+            // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
+            if(m_gid == 0){
+		// First Group
+		m_prev_group_seq = m_prev_seq;
+		m_prev_group_atime = m_prev_time;
+		m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
+		m_gid += 1;
+	    }
+	    else{
+		// Else
+		// Calculate inter variables
+		l_inter_arrival = m_prev_time - m_prev_group_atime;
+		// Prefiltering (If inter arrival time is less than BURST_TIME, it is part of current working packet group.)
+		if(l_inter_arrival > 5000){
+		    l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);  	
+	            	
+  	            // Calculate Inter Delay Variation
+        	    l_inter_delay_var = l_inter_arrival - l_inter_departure;
+                    // Prefiltering (If inter delay variation is less than 0, it is part of current working packet group.)
+		    if(l_inter_delay_var >= 0){
+		        m_gid += 1;
+		        m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
+
+		        m_prev_group_atime = m_prev_time;
+		        m_prev_group_seq = m_prev_seq;
+			is_group_changed = true;
+		    }
+		    else{
+		        is_group_changed = false;
+		    }
+		}
+		else{
+		    is_group_changed = false;
+		}
+	    }
+        }
+	
+	// Increment...
+	m_prev_time = timestampUs;
+	m_prev_seq = sequence;
+        
+
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
-        m_controller->processFeedback (nowUs / 1000, sequence, timestampUs / 1000, ecn); // TODO (next patch): Change params to Us
+
+	// TODO SHOULD MODIFY. UNCLEAR : Does processFeedback only call when group is changed?
+	if(is_group_changed){
+            m_controller->processFeedback (nowUs, sequence, timestampUs, ecn, l_inter_arrival, l_inter_departure, l_inter_delay_var);
+        }
     }
-    CalcBufferParams (nowUs / 1000);
+
+    // TODO MAYBE THIS PART IS NOT NEEDED.
+    // CalcBufferParams (nowUs);
+    const auto r_rate = m_controller->getSendBps();
+    m_rBitrate = r_rate;
 }
 
-void RmcatSender::CalcBufferParams (uint64_t now)
+void RmcatSender::CalcBufferParams (uint64_t nowUs)
 {
+    /*
     //Calculate rate shaping buffer parameters
-    const auto r_ref = m_controller->getBandwidth (now); // in bps
+    const auto r_ref = m_controller->getBandwidth (nowUs); // bandwidth in bps
     float bufferLen;
     //Purpose: smooth out timing issues between send and receive
     // feedback for the common case: buffer oscillating between 0 and 1 packets
@@ -390,7 +478,7 @@ void RmcatSender::CalcBufferParams (uint64_t now)
 
     syncodecs::Codec& codec = *m_codec;
 
-    // TODO (deferred):  encapsulate rate shaping buffer in a separate class
+    // TODO (deferred): encapsulate rate shaping buffer in a separate class
     if (USE_BUFFER && static_cast<bool> (codec)) {
         const float fps = 1. / static_cast<float>  (codec->second);
         m_rVin = std::max<float> (m_minBw, r_ref - BETA_V * 8. * bufferLen * fps);
@@ -404,6 +492,7 @@ void RmcatSender::CalcBufferParams (uint64_t now)
         m_rVin = r_ref;
         m_rSend = r_ref;
     }
+    */
 }
 
 }
