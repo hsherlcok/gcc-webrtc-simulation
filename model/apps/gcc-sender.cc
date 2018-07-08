@@ -256,6 +256,10 @@ void GccSender::StopApplication ()
     Simulator::Cancel (m_enqueueEvent);
     Simulator::Cancel (m_sendEvent);
     Simulator::Cancel (m_sendOversleepEvent);
+    
+    m_PacingQ.clear();
+    m_PacingQBytes = 0;
+
     m_rateShapingBuf.clear ();
     m_rateShapingBytes = 0;
 }
@@ -407,11 +411,17 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         if((m_controller->GetPacketTxTimestamp(sequence) - m_prev_group_time) >= 5000){
             // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
             if(m_gid == 0){
-		// First Group
+                // First Group
 		m_prev_group_seq = m_prev_seq;
 		m_prev_group_atime = m_prev_time;
 		m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
 		m_gid += 1;
+
+                NS_LOG_INFO ("GccSender::Group Changed(First Group)"
+                            << "gid : " << m_gid
+                            << ", group start seq : " << m_prev_group_seq
+                            << ", group atime : " << m_prev_group_atime
+                            << ", group time : " << m_prev_group_time);
 	    }
 	    else{
 		// Else
@@ -425,12 +435,22 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         	    l_inter_delay_var = l_inter_arrival - l_inter_departure;
                     // Prefiltering (If inter delay variation is less than 0, it is part of current working packet group.)
 		    if(l_inter_delay_var >= 0){
+
 		        m_gid += 1;
 		        m_prev_group_time = m_controller->GetPacketTxTimestamp(sequence);
 
 		        m_prev_group_atime = m_prev_time;
 		        m_prev_group_seq = m_prev_seq;
 			is_group_changed = true;
+                        
+                        NS_LOG_INFO ("GccSender::Group Changed(First Group)"
+                            << "gid : " << m_gid
+                            << ", group start seq : " << m_prev_group_seq
+                            << ", group atime : " << m_prev_group_atime
+                            << ", group time : " << m_prev_group_time
+                            << ", inter arrival time : " << l_inter_arrival
+                            << ", inter departure time : " << l_inter_departure
+                            << ", inter delay var : " << l_inter_delay_var);
 		    }
 		    else{
 		        is_group_changed = false;
