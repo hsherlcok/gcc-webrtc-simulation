@@ -30,8 +30,8 @@
 
 #include "ns3/gcc-controller.h"
 #include "ns3/nada-controller.h"
-#include "ns3/rmcat-sender.h"
-#include "ns3/rmcat-receiver.h"
+#include "ns3/gcc-sender.h"
+#include "ns3/gcc-receiver.h"
 #include "ns3/rmcat-constants.h"
 #include "ns3/point-to-point-helper.h"
 #include "ns3/data-rate.h"

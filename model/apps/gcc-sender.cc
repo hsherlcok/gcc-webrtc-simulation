@@ -450,10 +450,10 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
 
-	// TODO SHOULD MODIFY. UNCLEAR : Does processFeedback only call when group is changed?
-	if(is_group_changed){
-            m_controller->processFeedback (nowUs, sequence, timestampUs, ecn, l_inter_arrival, l_inter_departure, l_inter_delay_var);
-        }
+        
+	// if(is_group_changed){
+        m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, ecn);
+        // }
     }
 
     // TODO MAYBE THIS PART IS NOT NEEDED.
