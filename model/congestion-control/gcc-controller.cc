@@ -94,7 +94,7 @@ GccController::GccController() :
  
     k_up_(0.0087),
     k_down_(0.039),
-    overusing_time_threshold_(100),
+    overusing_time_threshold_(100000),
     threshold_(12.5),
     last_update_ms_(-1),
     D_prev_offset_(0.0),
@@ -974,7 +974,7 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
 
 	
   const double T = std::min(num_of_deltas, kMinNumDeltas) * offset;
-  std::cout << "flag overusing : " << offset<< "\t"  << T << "\t" << threshold_ << "\t" << time_over_using_ << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
+  std::cout << "flag overusing : " << ts_delta << "\t" << offset<< "\t"  << T << "\t" << threshold_ << "\t" << time_over_using_ << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
   if (T > threshold_) {
     if (time_over_using_ == -1) {
       // Initialize the timer. Assume that we've been
@@ -991,17 +991,21 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
         time_over_using_ = 0;
         overuse_counter_ = 0;
         D_hypothesis_ = 'O';
+	
+  std::cout<<"overover!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
       }
     }
   } else if (T < -threshold_) {
     time_over_using_ = -1;
     overuse_counter_ = 0;
     D_hypothesis_ = 'U';
-  std::cout<<"wow!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
+  std::cout<<"under!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
   } else {
     time_over_using_ = -1;
     overuse_counter_ = 0;
     D_hypothesis_ = 'N';
+	
+  std::cout<<"Normal!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
   }
   D_prev_offset_ = offset;
 
