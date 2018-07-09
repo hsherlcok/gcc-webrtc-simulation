@@ -175,7 +175,7 @@ static void InstallApps (bool gcc,
     Ipv4Address receiverIp = ipv4->GetAddress (1, 0).GetLocal ();
     sendApp->Setup (receiverIp, port); // initBw, minBw, maxBw);
 
-    const auto fps = 60.;		// Set Video Fps.
+    const auto fps = 30.;		// Set Video Fps.
     auto innerCodec = new syncodecs::StatisticsCodec{fps};
     auto codec = new syncodecs::ShapedPacketizer{innerCodec, DEFAULT_PACKET_SIZE};
     sendApp->SetCodec (std::shared_ptr<syncodecs::Codec>{codec});
