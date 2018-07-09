@@ -104,6 +104,7 @@ private:
     uint32_t m_PacingQBytes;
     uint64_t m_nextSendTstmpUs;
     bool m_firstFeedback;
+    int m_group_size_inter;
     int m_group_size;
 };
 
