@@ -35,7 +35,7 @@
 
 namespace rmcat {
 
-const int MIN_PACKET_LOGLEN = 5;             /**< minimum # of packets in log for stats to be meaningful */
+const int MIN_PACKET_LOGLEN = 1;             /**< minimum # of packets in log for stats to be meaningful */
 const uint64_t MAX_INTER_PACKET_TIME_US = 500 * 1000;  /**< maximum interval between packets, in microseconds */
 const uint64_t DEFAULT_HISTORY_LENGTH_US = 500 * 1000; /**< default time window for logging history of packets, in microseconds */
 const float RMCAT_CC_DEFAULT_RINIT = 150000.; /**< Initial BW in bps: 150Kbps */

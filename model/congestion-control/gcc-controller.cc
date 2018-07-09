@@ -372,6 +372,7 @@ void GccController::reset() {
     m_lastTimeCalcUs = 0;
     m_lastTimeCalcValid = false;
 
+	
     m_QdelayUs = 0;
     m_ploss = 0;
     m_Pkt = 0;
@@ -394,20 +395,79 @@ bool GccController::processFeedback(uint64_t nowUs,
                                                             l_inter_arrival,
                                                             l_inter_departure,
                                                             l_inter_delay_var, ecn);
+		
+
+	static const int kMinBitrateBps = 10000;
+	static const int kMaxBitrateBps = 10000000;
+  	static const int kInitialBitrateBps = 300000;
+  	static const int kDelayBasedBitrateBps = 350000;
+  	static const int kForcedHighBitrate = 2500000;
+
+	uint64_t now_ms = nowUs/1000;
+
+	if(!res) return false;
+
+	if(!m_lastTimeCalcValid){
+		m_lastTimeCalcValid = true;
+		SetMinMaxBitrate(kMinBitrateBps, kMaxBitrateBps);
+		SetSendBitrate(nowUs, kInitialBitrateBps);
+		m_lastTimeCalcUs = nowUs;
+		return true;
+	}
+
+	// Shift up send time to use the full 32 bits that inter_arrival works with,
+  	// so wrapping works properly.
+  	// TODO(holmer): SSRCs are only needed for REMB, should be broken out from
+  	// here.
+  	// Check if incoming bitrate estimate is valid, and if it needs to be reset.
+  	updateMetrics();
+
+
+  	uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
+  	int64_t t_delta = l_inter_arrival/1000;
+  	int size_delta = 0;
+
+	bool update_estimate = false;
+  	uint32_t target_bitrate_bps = 0;
     
-    const uint64_t calcIntervalUs = 200 * 1000;
-    if (m_lastTimeCalcValid) {
-        assert(lessThan(m_lastTimeCalcUs, nowUs + 1));
-        if (nowUs - m_lastTimeCalcUs >= calcIntervalUs) {
-            updateMetrics();
-            logStats(nowUs);
-            m_lastTimeCalcUs = nowUs;
-        }
-    } else {
-        m_lastTimeCalcUs = nowUs;
-        m_lastTimeCalcValid = true;
+
+	if(ts_delta){
+		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms);
+      	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
     }
-    return res;
+
+    if (!update_estimate) {
+      // Check if it's time for a periodic update or if we should update because
+      // of an over-use.
+	
+		if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > GetFeedbackInterval()) {
+        	update_estimate = true;
+      	} else if (D_hypothesis_ == 'O') {
+        	uint32_t incoming_rate = (uint32_t)m_RecvR; 
+        	if (incoming_rate && TimeToReduceFurther(now_ms, incoming_rate)) {
+          		update_estimate = true;
+        	}
+      	}
+    }
+
+    if (update_estimate) {
+      	// The first overuse should immediately trigger a new estimate.
+      	// We also have to update the estimate immediately if we are overusing
+      	// and the target bitrate is too high compared to what we are receiving.
+      	target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
+      	update_estimate = ValidEstimate();
+		//UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+		//UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
+
+		last_update_ms_ = now_ms;
+	
+		logStats(now_ms);
+		//loss based need
+	}
+
+    m_lastTimeCalcUs = nowUs;
+    
+	return res;
 }
 
 float GccController::getBandwidth(uint64_t nowUs) const {
@@ -455,7 +515,7 @@ bool GccController::ValidEstimate() const {
   return bitrate_is_initialized_;
 }
 
-int64_t GccController::GetFeedbackInterval() const {
+uint64_t GccController::GetFeedbackInterval() const {
   // Estimate how often we can send RTCP if we allocate up to 5% of bandwidth
   // to feedback.
   static const int kRtcpSize = 80;
@@ -732,7 +792,7 @@ void GccController::logStats(uint64_t nowUs) const {
     os << std::fixed;
     os.precision(RMCAT_LOG_PRINT_PRECISION);
 
-    os  << " algo:dummy " << m_id
+    os  << " algo:gcc " << m_id
         << " ts: "     << (nowUs / 1000)
         << " loglen: " << m_packetHistory.size()
         << " qdel: "   << (m_QdelayUs / 1000)

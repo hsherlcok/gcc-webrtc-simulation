@@ -169,7 +169,7 @@ static void InstallApps (bool gcc,
     receiver->AddApplication (recvApp);
 
     if (gcc) {
-        sendApp->SetController (std::make_shared<rmcat::NadaController> ());
+        sendApp->SetController (std::make_shared<rmcat::GccController> ());
     }
     Ptr<Ipv4> ipv4 = receiver->GetObject<Ipv4> ();
     Ipv4Address receiverIp = ipv4->GetAddress (1, 0).GetLocal ();

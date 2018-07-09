@@ -104,7 +104,7 @@ public:
     bool ValidEstimate() const;
     void SetStartBitrate(int start_bitrate_bps);
     void SetMinBitrate(int min_bitrate_bps);
-    int64_t GetFeedbackInterval() const;
+    uint64_t GetFeedbackInterval() const;
 
     bool TimeToReduceFurther(int32_t time_now, uint32_t incoming_bitrate_bps) const;
 
