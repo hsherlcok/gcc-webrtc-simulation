@@ -232,6 +232,8 @@ public:
 								 int64_t l_arrival_time,
                                  uint8_t ecn=0);
 
+    virtual void PrunTransitHistory(uint32_t tar_seq);
+
     virtual uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s);
 
     virtual uint64_t GetPacketTxTimestamp(uint16_t sequence);

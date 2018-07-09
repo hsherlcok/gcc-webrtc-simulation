@@ -283,6 +283,14 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     return true;
 }
 
+void SenderBasedController::PrunTransitHistory(uint32_t tar_seq) {
+    while(m_PacketTransitHistory.front().sequence < tar_seq) {
+        std::cout << "PrunTransitHistory:: " << m_PacketTransitHistory.front().sequence  << "\n";
+        std::cout << "PrunTransitHistory:: " << tar_seq << "\n";
+        m_PacketTransitHistory.pop_front();
+    }
+}
+
 uint64_t SenderBasedController::GetPacketTxTimestamp(uint16_t sequence){
     uint32_t i = 0;
     uint32_t qsize = m_PacketTransitHistory.size();

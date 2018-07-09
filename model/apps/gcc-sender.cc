@@ -402,7 +402,6 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
     auto l_inter_arrival = 0;
     auto l_inter_departure = 0;
     int64_t l_inter_delay_var = 0;
-    bool is_group_changed = false;
 
     NS_ASSERT (res);
     for (auto& item : feedback) {
@@ -434,14 +433,14 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
 		m_curr_group_time = curr_pkt_send_time;
-                
+                 
                 std::cout << "First Group:: \n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
                 std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << m_curr_group_time << "\n";
 
          	m_gid += 1;
-               
+                m_controller->PrunTransitHistory(m_prev_group_seq);
 	    }
 	    else{
 		// Else
@@ -462,15 +461,15 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 //	        std::cout << "**. " << m_group_size << "\n";
                 m_curr_group_start_seq = sequence;
                 std::cout << "Group Changed\n";
-  //              std::cout << "1. " << m_prev_group_seq << "\n";
-    //            std::cout << "2. " << m_prev_group_atime << "\n";
+                std::cout << "1. " << m_prev_group_seq << "\n";
+                std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << l_inter_arrival << "\n";
                 std::cout << "4. " << l_inter_departure << "\n";
                 std::cout << "5. " << l_inter_delay_var << "\n";
                 std::cout << "6. " << m_group_size_inter << "\n";
 		m_gid += 1;
-
-                is_group_changed = true;
+                
+                m_controller->PrunTransitHistory(m_prev_group_seq);
             }
 
             const auto ecn = item.second.m_ecn;
@@ -518,7 +517,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
                 std::cout << "3. " << m_curr_group_time << "\n";
 
          	m_gid += 1;
-               
+                m_controller->PrunTransitHistory(m_prev_group_seq);
 	    }
 	    else{
 		// Else
@@ -547,7 +546,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
                 std::cout << "6. " << m_group_size_inter << "\n";
 		m_gid += 1;
 
-                is_group_changed = true;
+                m_controller->PrunTransitHistory(m_prev_group_seq);
             }
         }	
     
