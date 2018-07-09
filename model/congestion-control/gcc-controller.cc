@@ -80,6 +80,7 @@ GccController::GccController() :
     m_ploss{0},
     m_plr{0.f},
     m_RecvR{0.}, 
+	m_timer{0},
 
     num_of_deltas_(0),
     slope_(8.0/512.0),	//need initial value
@@ -249,7 +250,8 @@ void GccController::UpdateEstimate(int64_t now_ms) {
   if (time_since_packet_report_ms < 1.2 * kFeedbackIntervalMs) {
     // We only care about loss above a given bitrate threshold.
     float loss = last_fraction_loss_ / 256.0f;
-
+     
+    std::cout<<loss<<"\t"<<low_loss_threshold_<<"\t"<<high_loss_threshold_<<std::endl;
     // We only make decisions based on loss when the bitrate is above a
     // threshold. This is a crude way of handling loss which is uncorrelated
     // to congestion.
@@ -421,70 +423,72 @@ bool GccController::processFeedback(uint64_t nowUs,
   	static const int kDelayBasedBitrateBps = 350000;
   	static const int kForcedHighBitrate = 2500000;
 
-	uint64_t now_ms = nowUs/1000 - 70;
-
-	if(!res) return false;
-
-	if(!m_lastTimeCalcValid){
-		m_lastTimeCalcValid = true;
-		SetMinMaxBitrate(kMinBitrateBps, kMaxBitrateBps);
-		SetSendBitrate(nowUs, kInitialBitrateBps);
-		return true;
-	}
-
-	// Shift up send time to use the full 32 bits that inter_arrival works with,
-  	// so wrapping works properly.
-  	// TODO(holmer): SSRCs are only needed for REMB, should be broken out from
-  	// here.
-  	// Check if incoming bitrate estimate is valid, and if it needs to be reset.
-  	updateMetrics();
-
-  	uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
-  	int64_t t_delta = l_inter_arrival/1000;
-  	int size_delta = l_inter_group_size;
-
-	bool update_estimate = false;
-  	uint32_t target_bitrate_bps = 0;
-   	
-    
-	std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
+	uint64_t now_ms = nowUs/1000;
 	
-	if(ts_delta){
-		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time);
-    	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time);
-    }
+	if (now_ms - m_timer > 30){
+        m_timer = now_ms;
+	    if(!res) return false;
 
-    if (!update_estimate) {
-      // Check if it's time for a periodic update or if we should update because
-      // of an over-use.
+	    if(!m_lastTimeCalcValid){
+	    	m_lastTimeCalcValid = true;
+		    SetMinMaxBitrate(kMinBitrateBps, kMaxBitrateBps);
+	 	    SetSendBitrate(nowUs, kInitialBitrateBps);
+		    return true;
+	    }
+
+		// Shift up send time to use the full 32 bits that inter_arrival works with,
+  		// so wrapping works properly.
+  		// TODO(holmer): SSRCs are only needed for REMB, should be broken out from
+  		// here.
+  		// Check if incoming bitrate estimate is valid, and if it needs to be reset.
+ 	 	updateMetrics();
+
+  		uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
+ 	 	int64_t t_delta = l_inter_arrival/1000;
+ 	 	int size_delta = l_inter_group_size;
 	
-		if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > GetFeedbackInterval()) {
-        	update_estimate = true;
-      	} else if (D_hypothesis_ == 'O') {
-        	uint32_t incoming_rate = (uint32_t)m_RecvR; 
-        	if (incoming_rate && TimeToReduceFurther(now_ms, incoming_rate)) {
-          		update_estimate = true;
-        	}
-      	}
-    }
+		bool update_estimate = false;
+  		uint32_t target_bitrate_bps = 0;
+   		
+   	 
+		std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
+		
+		if(ts_delta){
+			OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time);
+   		 	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time);
+   	 	}
 
-    // The first overuse should immediately trigger a new estimate.
-    // We also have to update the estimate immediately if we are overusing
-    // and the target bitrate is too high compared to what we are receiving.	
+    	if (!update_estimate) {
+      	// Check if it's time for a periodic update or if we should update because
+      	// of an over-use.
 	
-	//update_estimate = true;
+			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > GetFeedbackInterval()) {
+   		     	update_estimate = true;
+   		   	} else if (D_hypothesis_ == 'O') {
+       		 	uint32_t incoming_rate = (uint32_t)m_RecvR; 
+        		if (incoming_rate && TimeToReduceFurther(now_ms, incoming_rate)) {
+          			update_estimate = true;
+        		}
+      		}
+    	}
 
-	std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
-	if (update_estimate){	
-		target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
-		UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
-    }
-	UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
-
-	last_update_ms_ = now_ms;
+    	// The first overuse should immediately trigger a new estimate.
+    	// We also have to update the estimate immediately if we are overusing
+    	// and the target bitrate is too high compared to what we are receiving.	
 	
-	logStats(nowUs);
-	    
+		//update_estimate = true;
+	
+		std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
+		if (update_estimate){	
+			target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
+			UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+	   	}
+		UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
+	
+		last_update_ms_ = now_ms;
+	
+		logStats(nowUs);
+	}    
 	return res;
 }
 
@@ -952,7 +956,7 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
     return 'N';
   }
   const double T = std::min(num_of_deltas, kMinNumDeltas) * offset;
-   
+  std::cout << T << "\t" << threshold_ << "\t" << time_over_using << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
   if (T > threshold_) {
     if (time_over_using_ == -1) {
       // Initialize the timer. Assume that we've been

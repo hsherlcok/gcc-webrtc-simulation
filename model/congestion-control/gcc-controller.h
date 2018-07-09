@@ -173,6 +173,7 @@ private:
 	uint32_t m_ploss;  /**< packet loss count within configured window */
     float m_plr;       /**< packet loss ratio within packet history window */
     float m_RecvR;     /**< updated receiving rate in bps */
+	uint64_t m_timer;
 	
 /*Overuse Estimator variable*/
     uint16_t num_of_deltas_;
