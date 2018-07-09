@@ -407,7 +407,7 @@ bool GccController::processFeedback(uint64_t nowUs,
                                       uint64_t rxTimestampUs,
                                       uint64_t l_inter_arrival,
                                       uint64_t l_inter_departure,
-                                      uint64_t l_inter_delay_var,
+                                      int64_t l_inter_delay_var,
 									  int l_inter_group_size,	
 									  int64_t l_arrival_time,                                     
 									  uint8_t ecn) {
@@ -852,6 +852,11 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
 
   	const bool in_stable_state = (current_hypothesis == 'N');
   	const double max_residual = 3.0 * sqrt(var_noise_);
+
+	
+	std::cout << "kalman 1 : " << residual << std::endl;	
+
+
   	// We try to filter out very late frames. For instance periodic key
   	// frames doesn't fit the Gaussian model well.
   	if (fabs(residual) < max_residual) {
@@ -864,6 +869,8 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
   	const double denom = var_noise_ + h[0] * Eh[0] + h[1] * Eh[1];
 
   	const double K[2] = {Eh[0] / denom, Eh[1] / denom};
+
+	std::cout << "kalman 2: " << K[0] << "\t" << denom << std::endl;
 
   	const double IKh[2][2] = {{1.0 - K[0] * h[0], -K[0] * h[1]},
                             {-K[1] * h[0], 1.0 - K[1] * h[1]}};
@@ -886,7 +893,7 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
   	slope_ = slope_ + K[0] * residual;
   	prev_offset_ = offset_;
   	offset_ = offset_ + K[1] * residual;
-
+	std::cout << "kalman : " << offset_ << std::endl;
 }
 
 double GccController::UpdateMinFramePeriod(double ts_delta) {
@@ -955,8 +962,10 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
   if (num_of_deltas < 2) {
     return 'N';
   }
+
+	
   const double T = std::min(num_of_deltas, kMinNumDeltas) * offset;
-  std::cout << T << "\t" << threshold_ << "\t" << time_over_using << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
+  std::cout << "flag overusing : " << offset<< "\t"  << T << "\t" << threshold_ << "\t" << time_over_using_ << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
   if (T > threshold_) {
     if (time_over_using_ == -1) {
       // Initialize the timer. Assume that we've been

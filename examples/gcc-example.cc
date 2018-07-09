@@ -212,6 +212,7 @@ int main (int argc, char *argv[])
     if (log) {
         LogComponentEnable ("GccSender", LOG_INFO);
         LogComponentEnable ("GccReceiver", LOG_INFO);
+        LogComponentEnable ("BulkSendApplication", LOG_LEVEL_ALL);
         //LogComponentEnable ("Packet", LOG_FUNCTION);
     }
 
