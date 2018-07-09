@@ -62,6 +62,7 @@ SenderBasedController::SenderBasedController()
   m_lastSequence{0},
   m_baseDelayUs{0},
   m_inTransitPackets{},
+  m_PacketTransitHistory{},
   m_packetHistory{},
   m_pktSizeSum{0},
   m_id{},
@@ -144,7 +145,7 @@ bool SenderBasedController::processSendPacket(uint64_t txTimestampUs,
     }
 
     ++m_lastSequence;
-
+    
     if (sequence != m_lastSequence) {
         std::cerr << "SenderBasedController::ProcessSendPacket,"
                   << " illegal sequence: " << sequence
@@ -152,12 +153,20 @@ bool SenderBasedController::processSendPacket(uint64_t txTimestampUs,
         return false;
     }
 
+    // std::cout << m_lastSequence << " " << txTimestampUs << " " << size << "\n";
+
     // record sent packets in local record
     m_inTransitPackets.push_back(PacketRecord{m_lastSequence,
                                               txTimestampUs,
                                               size,
                                               0,
                                               0});
+    // Record all sent packets.
+    m_PacketTransitHistory.push_back(PacketRecord{m_lastSequence,
+                                                  txTimestampUs,
+                                                  size,
+                                                  0,
+                                                  0});
     // Memory safety: timestamps of in-transit packets must be
     //  within (10 * MAX_INTER_PACKET_TIME)
     while (true) {
@@ -178,6 +187,7 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
                                             uint64_t l_inter_arrival,
                                             uint64_t l_inter_departure,
                                             uint64_t l_inter_delay_var,
+				            int l_inter_group_size,
 					    uint8_t ecn) {
     if (lessThan(m_lastSequence, sequence)) {
         std::cerr << "SenderBasedController::ProcessFeedback,"
@@ -204,6 +214,10 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
         //     or the feedback (backward path) packet was lost.
         // Assuming media packet was lost for the time being
     }
+    
+    /*while (lessThan(m_PacketTransitHistory.front().sequence, sequence)) {
+        m_PacketTransitHistory.pop_front();
+    }*/
 
     if (lessThan(sequence, m_inTransitPackets.front().sequence)) {
         std::cerr << "SenderBasedController::ProcessFeedback,"
@@ -271,27 +285,35 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
 
 uint64_t SenderBasedController::GetPacketTxTimestamp(uint16_t sequence){
     uint32_t i = 0;
-    uint32_t qsize = m_inTransitPackets.size();
+    uint32_t qsize = m_PacketTransitHistory.size();
+
+    // std::cout << "GETPKT::at(0):: " << m_PacketTransitHistory.at(0).sequence << "\n";
     for(i = 0; i < qsize; i++){
-        if(m_inTransitPackets.at(i).sequence == sequence){
-            return m_inTransitPackets.at(i).txTimestampUs;
+        if(m_PacketTransitHistory.at(i).sequence == sequence){
+            // std::cout << "GetPacketTxTimestamp:: " << m_PacketTransitHistory.at(i).txTimestampUs << "\n"; 
+            return m_PacketTransitHistory.at(i).txTimestampUs;
         }
     }
     return -1;
 }
 
 uint64_t SenderBasedController::UpdateDepartureTime(uint32_t prev_s, uint32_t now_s){
-    uint32_t qsize = m_inTransitPackets.size();
-    uint64_t prev_t, now_t;
+    uint32_t qsize = m_PacketTransitHistory.size();
+    uint64_t prev_t = 0, now_t = 0;
 
     uint32_t i = 0;
+    // std::cout << "UpdateDepartureTime:: " << prev_s << ", " << now_s << "\n";
+    // std::cout << "UPDATEPKT::at(0):: " << m_PacketTransitHistory.at(0).sequence << "\n";
     for(i = 0; i < qsize; i++){
-        if(m_inTransitPackets.at(i).sequence == prev_s){
-	    prev_t = m_inTransitPackets.at(i).txTimestampUs;
+        
+        if(m_PacketTransitHistory.at(i).sequence == prev_s){
+	    prev_t = m_PacketTransitHistory.at(i).txTimestampUs;
+     //       std::cout << "prev_t:: " << prev_t << "\n";
 	}
 	
-	if(m_inTransitPackets.at(i).sequence == now_s){
-	    now_t = m_inTransitPackets.at(i).txTimestampUs;
+	if(m_PacketTransitHistory.at(i).sequence == now_s){
+	    now_t = m_PacketTransitHistory.at(i).txTimestampUs;
+   //         std::cout << "now_t:: " << now_t << "\n";
 	}
     }
 

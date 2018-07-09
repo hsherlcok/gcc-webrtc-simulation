@@ -85,6 +85,7 @@ private:
     uint64_t m_prev_group_time;
     uint64_t m_prev_group_atime;    // Arrival time of previous group
     uint32_t m_prev_group_seq;	// End Sequnce number of previous feedback pkt
+    uint32_t m_prev_group_start_seq;
     uint32_t m_rtpTsOffset;
     uint64_t m_prev_feedback_time;
     bool m_groupchanged;
@@ -101,6 +102,8 @@ private:
     uint32_t m_rateShapingBytes;
     uint32_t m_PacingQBytes;
     uint64_t m_nextSendTstmpUs;
+    bool m_firstFeedback;
+    int m_group_size;
 };
 
 }
