@@ -141,7 +141,12 @@ GccController::GccController() :
     high_loss_threshold_(kDefaultHighLossThreshold),
     bitrate_threshold_bps_(1000 * kDefaultBitrateThresholdKbps) 
 
-{}
+{	E_[0][0] = 100;
+	E_[1][1] = 1e-1;
+	E_[0][1] = E_[1][0] = 0;
+	process_noise_[0] = 1e-13;
+	process_noise_[1] = 1e-3;
+}
 
 GccController::~GccController() {}
 
@@ -845,8 +850,12 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
   	}
 
   	const double h[2] = {fs_delta, 1.0};
+	
   	const double Eh[2] = {E_[0][0] * h[0] + E_[0][1] * h[1],
                         E_[1][0] * h[0] + E_[1][1] * h[1]};
+
+	std::cout << "kalman 0 : " << h[0] << "\t" << h[1] << "\t" << Eh[0] << "\t" << Eh[1] << std::endl;
+
 
  	const double residual = t_ts_delta - slope_ * h[0] - offset_;
 
@@ -870,7 +879,7 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
 
   	const double K[2] = {Eh[0] / denom, Eh[1] / denom};
 
-	std::cout << "kalman 2: " << K[0] << "\t" << denom << std::endl;
+	std::cout << "kalman 2: " << K[1] << "\t" << denom << std::endl;
 
   	const double IKh[2][2] = {{1.0 - K[0] * h[0], -K[0] * h[1]},
                             {-K[1] * h[0], 1.0 - K[1] * h[1]}};
@@ -982,13 +991,13 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
         time_over_using_ = 0;
         overuse_counter_ = 0;
         D_hypothesis_ = 'O';
-  std::cout<<"wow!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
       }
     }
   } else if (T < -threshold_) {
     time_over_using_ = -1;
     overuse_counter_ = 0;
     D_hypothesis_ = 'U';
+  std::cout<<"wow!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
   } else {
     time_over_using_ = -1;
     overuse_counter_ = 0;
