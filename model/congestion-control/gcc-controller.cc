@@ -38,6 +38,7 @@
 #include <string>
 #include <limits>
 #include <cstdio>
+#include <iostream>
 
 namespace rmcat {
 
@@ -81,13 +82,13 @@ GccController::GccController() :
     m_RecvR{0.}, 
 
     num_of_deltas_(0),
-    slope_(0),	//need initial value
+    slope_(8.0/512.0),	//need initial value
     offset_(0),	//need initial value
     prev_offset_(0),	//need initial value
     E_(),
     process_noise_(),
-    avg_noise_(0),	//need initial value
-    var_noise_(0),	//need initial value
+    avg_noise_(0.0),	//need initial value
+    var_noise_(50),	//need initial value
     ts_delta_hist_(),	
  
     k_up_(0.0087),
@@ -129,7 +130,6 @@ GccController::GccController() :
     last_fraction_loss_(0),
     last_logged_fraction_loss_(0),
     last_round_trip_time_ms_(0),
-    bwe_incoming_(0),
     delay_based_bitrate_bps_(0),
     time_last_decrease_ms_(0),
     first_report_time_ms_(-1),
@@ -336,8 +336,8 @@ void GccController::UpdateMinHistory(int64_t now_ms) {
 
 void GccController::CapBitrateToThresholds(int64_t now_ms,
                                                          uint32_t bitrate_bps) {
-  if (bwe_incoming_ > 0 && bitrate_bps > bwe_incoming_) {
-    bitrate_bps = bwe_incoming_;
+  if (m_RecvR > 0 && bitrate_bps > m_RecvR) {
+    bitrate_bps = m_RecvR;
   }
   if (delay_based_bitrate_bps_ > 0 && bitrate_bps > delay_based_bitrate_bps_) {
     bitrate_bps = delay_based_bitrate_bps_;
@@ -388,14 +388,14 @@ bool GccController::processFeedback(uint64_t nowUs,
                                       uint64_t l_inter_arrival,
                                       uint64_t l_inter_departure,
                                       uint64_t l_inter_delay_var,
+									  int l_inter_group_size,	
                                       uint8_t ecn) {
     // First of all, call the superclass
     const bool res = SenderBasedController::processFeedback(nowUs, sequence,
                                                             rxTimestampUs,
                                                             l_inter_arrival,
                                                             l_inter_departure,
-                                                            l_inter_delay_var, ecn);
-		
+                                                            l_inter_delay_var, l_inter_group_size, ecn);		
 
 	static const int kMinBitrateBps = 10000;
 	static const int kMaxBitrateBps = 10000000;
@@ -411,7 +411,6 @@ bool GccController::processFeedback(uint64_t nowUs,
 		m_lastTimeCalcValid = true;
 		SetMinMaxBitrate(kMinBitrateBps, kMaxBitrateBps);
 		SetSendBitrate(nowUs, kInitialBitrateBps);
-		m_lastTimeCalcUs = nowUs;
 		return true;
 	}
 
@@ -422,20 +421,21 @@ bool GccController::processFeedback(uint64_t nowUs,
   	// Check if incoming bitrate estimate is valid, and if it needs to be reset.
   	updateMetrics();
 
-
   	uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
   	int64_t t_delta = l_inter_arrival/1000;
-  	int size_delta = 0;
+  	int size_delta = 10;
 
 	bool update_estimate = false;
   	uint32_t target_bitrate_bps = 0;
+   	
     
+	//std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
+	
 
-	if(ts_delta){
-		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms);
-      	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
-    }
-
+	OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms);
+    OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
+    
+	/*
     if (!update_estimate) {
       // Check if it's time for a periodic update or if we should update because
       // of an over-use.
@@ -448,25 +448,22 @@ bool GccController::processFeedback(uint64_t nowUs,
           		update_estimate = true;
         	}
       	}
-    }
+    }*/
 
-    if (update_estimate) {
-      	// The first overuse should immediately trigger a new estimate.
-      	// We also have to update the estimate immediately if we are overusing
-      	// and the target bitrate is too high compared to what we are receiving.
-      	target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
-      	update_estimate = ValidEstimate();
-		//UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
-		//UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
-
-		last_update_ms_ = now_ms;
+    // The first overuse should immediately trigger a new estimate.
+    // We also have to update the estimate immediately if we are overusing
+    // and the target bitrate is too high compared to what we are receiving.	
 	
-		logStats(now_ms);
-		//loss based need
-	}
+	std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
+	target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
+		
+	//UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+	//UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
 
-    m_lastTimeCalcUs = nowUs;
-    
+	last_update_ms_ = now_ms;
+	
+	logStats(nowUs);
+	    
 	return res;
 }
 
@@ -562,7 +559,7 @@ uint32_t GccController::Update(char bw_state, uint32_t incoming_bitrate, double 
       if (incoming_bitrate)
         time_first_incoming_estimate_ = now_ms;
     } else if (now_ms - time_first_incoming_estimate_ > kInitializationTimeMs &&
-               incoming_bitrate) {
+               incoming_bitrate > 0) {
       current_bitrate_bps_ = incoming_bitrate;
       bitrate_is_initialized_ = true;
     }
@@ -799,7 +796,7 @@ void GccController::logStats(uint64_t nowUs) const {
         << " ploss: "  << m_ploss
         << " plr: "    << m_plr
         << " rrate: "  << m_RecvR
-        << " srate: "  << m_initBw;
+        << " srate: "  << current_bitrate_bps_;
     logMessage(os.str());
 }
 
@@ -891,7 +888,7 @@ void GccController::UpdateNoiseEstimate(double residual,
   double alpha = 0.01;
   if (num_of_deltas_ > 10 * 30) {
     alpha = 0.002;
- }
+  }
   // Only update the noise estimate if we're not over-using. |beta| is a
   // function of alpha and the time delta since the previous update.
   const double beta = pow(1 - alpha, ts_delta * 30.0 / 1000.0);

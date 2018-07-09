@@ -70,7 +70,8 @@ public:
                                  uint64_t rxTimestampUs,
                                  uint64_t l_inter_arrival,
                                  uint64_t l_inter_departure,
-			         uint64_t l_inter_delay_var,
+			         			uint64_t l_inter_delay_var,
+								int l_inter_group_size,
                                  uint8_t ecn=0);
 
     /** NADA's realization of the #getBandwidth API */

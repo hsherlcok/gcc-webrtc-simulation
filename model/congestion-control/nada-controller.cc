@@ -151,6 +151,7 @@ bool NadaController::processFeedback(uint64_t nowUs,
                                      uint64_t l_inter_arrival,
                                      uint64_t l_inter_departure,
                                      uint64_t l_inter_delay_var,
+									 int l_inter_group_size,
                                      uint8_t ecn) {
     /* First of all, call the superclass */
     if (!SenderBasedController::processFeedback(nowUs,
@@ -159,6 +160,7 @@ bool NadaController::processFeedback(uint64_t nowUs,
                                                 l_inter_arrival,
                                                 l_inter_departure,
                                                 l_inter_delay_var,
+												l_inter_group_size,
                                                 ecn)) {
         return false;
     }
