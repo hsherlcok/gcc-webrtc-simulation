@@ -410,7 +410,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         const auto timestampUs = item.second.m_timestampUs;
         if(m_firstFeedback){
             m_gid = 0;
-            m_prev_group_start_seq = sequence;		// Sequence of Group's first packet
+            m_curr_group_start_seq = sequence;		// Sequence of Group's first packet
             m_curr_group_time = m_controller->GetPacketTxTimestamp(sequence);        // Departure time of Group's first packet
             m_firstFeedback = false;
         }
@@ -421,8 +421,8 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
             if(m_gid == 0){
                 // First Group
                 std::cout << "First Group End\n";
-		m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
-                m_group_size = m_prev_group_seq - m_prev_group_start_seq;	// Group size
+	         	m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
+                m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
                 m_curr_group_start_seq = sequence;
 
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
@@ -439,7 +439,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 	    else{
 		// Else
 		// Calculate inter variables
-		l_inter_arrival = m_prev_time - m_curr_group_atime;
+		l_inter_arrival = m_prev_time - m_prev_group_atime;
 		// Prefiltering (If inter arrival time is less than BURST_TIME, it is part of current working packet group.)
 		if(l_inter_arrival >= 5000){
 		    l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);
@@ -483,9 +483,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         const auto ecn = item.second.m_ecn;
         NS_ASSERT (timestampUs <= nowUs);
         
-	if(is_group_changed){
-            m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size, m_prev_time, ecn);
-        }
+        m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size, m_prev_time, ecn);
 
 	// Increment...
 	m_prev_time = timestampUs;

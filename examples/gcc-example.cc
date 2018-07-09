@@ -241,7 +241,7 @@ int main (int argc, char *argv[])
     }
 
     for (int i = 0; i < nTcp; i++) {
-        auto start = 17. * i;
+        auto start = 10+0.01 * i;
         auto end = std::max (start + 1., endTime - start);
         InstallTCP (nodes.Get (0), nodes.Get (1), port++, start, end);
     }

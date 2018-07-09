@@ -69,6 +69,7 @@ public:
                                  uint64_t l_inter_departure,
                                  uint64_t l_inter_delay_var,
 								 int l_inter_group_size,
+								 int64_t l_arrival_time,
                                  uint8_t ecn=0);
     /**
      * Simplistic implementation of bandwidth getter. It returns a hard-coded

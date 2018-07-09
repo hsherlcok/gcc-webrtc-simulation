@@ -197,8 +197,6 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
     int64_t expected = expected_packets_since_last_loss_update_;
     last_fraction_loss_ = std::min<int>(lost_q8 / expected, 255);
 	
-    std::cout << last_fraction_loss_ << std::endl;	
-
     // Reset accumulators.
 
     lost_packets_since_last_loss_update_ = 0;
@@ -251,6 +249,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
   if (time_since_packet_report_ms < 1.2 * kFeedbackIntervalMs) {
     // We only care about loss above a given bitrate threshold.
     float loss = last_fraction_loss_ / 256.0f;
+
     // We only make decisions based on loss when the bitrate is above a
     // threshold. This is a crude way of handling loss which is uncorrelated
     // to congestion.
@@ -408,14 +407,14 @@ bool GccController::processFeedback(uint64_t nowUs,
                                       uint64_t l_inter_departure,
                                       uint64_t l_inter_delay_var,
 									  int l_inter_group_size,	
-									                                        
+									  int64_t l_arrival_time,                                     
 									  uint8_t ecn) {
     // First of all, call the superclass
     const bool res = SenderBasedController::processFeedback(nowUs, sequence,
                                                             rxTimestampUs,
                                                             l_inter_arrival,
                                                             l_inter_departure,
-                                                            l_inter_delay_var, l_inter_group_size,  ecn);		
+                                                            l_inter_delay_var, l_inter_group_size, l_arrival_time,  ecn);		
 	static const int kMinBitrateBps = 10000;
 	static const int kMaxBitrateBps = 10000000;
   	static const int kInitialBitrateBps = 300000;
@@ -451,8 +450,8 @@ bool GccController::processFeedback(uint64_t nowUs,
 	std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
 	
 	if(ts_delta){
-		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms );
-    	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
+		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time);
+    	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time);
     }
 
     if (!update_estimate) {
@@ -970,6 +969,7 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
         time_over_using_ = 0;
         overuse_counter_ = 0;
         D_hypothesis_ = 'O';
+  std::cout<<"wow!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<<std::endl;
       }
     }
   } else if (T < -threshold_) {
@@ -982,6 +982,7 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
     D_hypothesis_ = 'N';
   }
   D_prev_offset_ = offset;
+
 
   UpdateThreshold(T, now_ms);
 
