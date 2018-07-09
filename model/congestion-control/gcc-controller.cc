@@ -101,8 +101,8 @@ GccController::GccController() :
     overuse_counter_(0),
     D_hypothesis_('N'),
 
-    min_configured_bitrate_bps_(500000), //initial value need
-    max_configured_bitrate_bps_(30000000),
+    min_configured_bitrate_bps_(150000), //initial value need
+    max_configured_bitrate_bps_(1500000),
     current_bitrate_bps_(max_configured_bitrate_bps_),
     latest_incoming_bitrate_bps_(current_bitrate_bps_),
     avg_max_bitrate_kbps_(-1.0f),
@@ -180,6 +180,8 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
   if (first_report_time_ms_ == -1)
     first_report_time_ms_ = now_ms;
 
+  std::cout << "loss rate " << packets_lost << std::endl;
+
   // Check sequence number diff and weight loss report
   if (number_of_packets > 0) {
     // Accumulate reports.
@@ -194,6 +196,8 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
     int64_t lost_q8 = lost_packets_since_last_loss_update_ << 8;
     int64_t expected = expected_packets_since_last_loss_update_;
     last_fraction_loss_ = std::min<int>(lost_q8 / expected, 255);
+	
+    std::cout << last_fraction_loss_ << std::endl;	
 
     // Reset accumulators.
 
@@ -264,7 +268,6 @@ void GccController::UpdateEstimate(int64_t now_ms) {
       //   108kbps.
       new_bitrate = static_cast<uint32_t>(
           min_bitrate_history_.front().second * 1.08 + 0.5);
-
       // Add 1 kbps extra, just to make sure that we do not get stuck
       // (gives a little extra increase at low rates, negligible at higher
       // rates).
@@ -279,6 +282,8 @@ void GccController::UpdateEstimate(int64_t now_ms) {
             (now_ms - time_last_decrease_ms_) >=
                 (kBweDecreaseIntervalMs + last_round_trip_time_ms_)) {
           time_last_decrease_ms_ = now_ms;
+		std::cout << "check" << std::endl;
+
 
           // Reduce rate:
           //   newRate = rate * (1 - 0.5*lossRate);
@@ -288,6 +293,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
                static_cast<double>(512 - last_fraction_loss_)) /
               512.0);
           has_decreased_since_last_fraction_loss_ = true;
+		std::cout << "here: " << new_bitrate << std::endl;
         }
       }
     }
@@ -305,6 +311,8 @@ void GccController::UpdateEstimate(int64_t now_ms) {
     }
   }
 
+	//ddddddd
+  std::cout << "here2 :" << new_bitrate << std::endl;
   CapBitrateToThresholds(now_ms, new_bitrate);
 }
 
@@ -336,15 +344,20 @@ void GccController::UpdateMinHistory(int64_t now_ms) {
 
 void GccController::CapBitrateToThresholds(int64_t now_ms,
                                                          uint32_t bitrate_bps) {
-  if (m_RecvR > 0 && bitrate_bps > m_RecvR) {
-    bitrate_bps = m_RecvR;
-  }
+  std::cout << "1 " << bitrate_bps  << " \t" << current_bitrate_bps_<< std::endl;
+
   if (delay_based_bitrate_bps_ > 0 && bitrate_bps > delay_based_bitrate_bps_) {
     bitrate_bps = delay_based_bitrate_bps_;
   }
+ 
+ std::cout << "2 " << bitrate_bps << std::endl;
+
   if (bitrate_bps > max_bitrate_configured_) {
     bitrate_bps = max_bitrate_configured_;
   }
+
+  std::cout << "3  " << bitrate_bps << std::endl;
+
   if (bitrate_bps < min_bitrate_configured_) {
     if (last_low_bitrate_log_ms_ == -1 ||
        now_ms - last_low_bitrate_log_ms_ > kLowBitrateLogPeriodMs) {
@@ -353,13 +366,19 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
     bitrate_bps = min_bitrate_configured_;
   }
 
+	std::cout << "4 " << bitrate_bps << std::endl;
+
   if (bitrate_bps != current_bitrate_bps_ ||
       last_fraction_loss_ != last_logged_fraction_loss_ ||
       now_ms - last_rtc_event_log_ms_ > kRtcEventLogPeriodMs) {
     last_logged_fraction_loss_ = last_fraction_loss_;
     last_rtc_event_log_ms_ = now_ms;
   }
+	
+  std::cout << "5 " <<  bitrate_bps << std::endl;
+
   current_bitrate_bps_ = bitrate_bps;
+	std::cout << current_bitrate_bps_ << std::endl;
 }
 
 
@@ -389,21 +408,21 @@ bool GccController::processFeedback(uint64_t nowUs,
                                       uint64_t l_inter_departure,
                                       uint64_t l_inter_delay_var,
 									  int l_inter_group_size,	
-                                      uint8_t ecn) {
+									                                        
+									  uint8_t ecn) {
     // First of all, call the superclass
     const bool res = SenderBasedController::processFeedback(nowUs, sequence,
                                                             rxTimestampUs,
                                                             l_inter_arrival,
                                                             l_inter_departure,
-                                                            l_inter_delay_var, l_inter_group_size, ecn);		
-
+                                                            l_inter_delay_var, l_inter_group_size,  ecn);		
 	static const int kMinBitrateBps = 10000;
 	static const int kMaxBitrateBps = 10000000;
   	static const int kInitialBitrateBps = 300000;
   	static const int kDelayBasedBitrateBps = 350000;
   	static const int kForcedHighBitrate = 2500000;
 
-	uint64_t now_ms = nowUs/1000;
+	uint64_t now_ms = nowUs/1000 - 70;
 
 	if(!res) return false;
 
@@ -423,19 +442,19 @@ bool GccController::processFeedback(uint64_t nowUs,
 
   	uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
   	int64_t t_delta = l_inter_arrival/1000;
-  	int size_delta = 10;
+  	int size_delta = l_inter_group_size;
 
 	bool update_estimate = false;
   	uint32_t target_bitrate_bps = 0;
    	
     
-	//std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
+	std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
 	
+	if(ts_delta){
+		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms );
+    	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
+    }
 
-	OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, now_ms);
-    OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, now_ms);
-    
-	/*
     if (!update_estimate) {
       // Check if it's time for a periodic update or if we should update because
       // of an over-use.
@@ -448,17 +467,20 @@ bool GccController::processFeedback(uint64_t nowUs,
           		update_estimate = true;
         	}
       	}
-    }*/
+    }
 
     // The first overuse should immediately trigger a new estimate.
     // We also have to update the estimate immediately if we are overusing
     // and the target bitrate is too high compared to what we are receiving.	
 	
+	//update_estimate = true;
+
 	std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
-	target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
-		
-	//UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
-	//UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
+	if (update_estimate){	
+		target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
+		UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+    }
+	UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
 
 	last_update_ms_ = now_ms;
 	
@@ -962,6 +984,8 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
   D_prev_offset_ = offset;
 
   UpdateThreshold(T, now_ms);
+
+    
 
   return D_hypothesis_;
 
