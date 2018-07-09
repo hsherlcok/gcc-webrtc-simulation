@@ -400,7 +400,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
     const bool res = header.GetMetricList (m_ssrc, feedback);
     auto l_inter_arrival = 0;
     auto l_inter_departure = 0;
-    auto l_inter_delay_var = 0;
+    int64_t l_inter_delay_var = 0;
     bool is_group_changed = false;
 
     NS_ASSERT (res);
