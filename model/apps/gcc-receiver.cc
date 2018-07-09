@@ -68,7 +68,6 @@ void GccReceiver::StartApplication ()
     m_ssrc = rand ();
     m_header.SetSendSsrc (m_ssrc);
     Time tFirst {MicroSeconds (m_periodUs)};
-    m_sendEvent = Simulator::Schedule (tFirst, &GccReceiver::SendFeedback, this, true);
 }
 
 void GccReceiver::StopApplication ()
@@ -107,12 +106,15 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
 
     uint64_t recvTimestampUs = Simulator::Now ().GetMicroSeconds ();
     AddFeedback (header.GetSequence (), recvTimestampUs);
+    
+    m_sendEvent = Simulator::ScheduleNow(&GccReceiver::SendFeedback, this, false);
 }
 
 void GccReceiver::AddFeedback (uint16_t sequence,
                                  uint64_t recvTimestampUs)
 {
     auto res = m_header.AddFeedback (m_remoteSsrc, sequence, recvTimestampUs);
+    std::cout << "AddFeedback:: " << sequence << "\n";
     if (res == CCFeedbackHeader::CCFB_TOO_LONG) {
         SendFeedback (false);
         res = m_header.AddFeedback (m_remoteSsrc, sequence, recvTimestampUs);

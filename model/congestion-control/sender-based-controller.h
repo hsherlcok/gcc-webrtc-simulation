@@ -228,6 +228,7 @@ public:
                                  uint64_t l_inter_arrival,
                                  uint64_t l_inter_departure,
                                  uint64_t l_inter_delay_var,
+                                 int l_inter_group_size,
                                  uint8_t ecn=0);
 
     virtual uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s);
@@ -241,6 +242,7 @@ public:
      *
      * @param [in] nowUs The time at which this function is called, in microseconds
      * @retval the congestion controller's bandwidth estimation, in bps
+w
      */
     virtual float getBandwidth(uint64_t nowUs) const =0;
 	virtual uint32_t getSendBps() const=0;
@@ -354,6 +356,7 @@ protected:
      * Sent packets for which feedback has not been received yet
      */
     std::deque<PacketRecord> m_inTransitPackets;
+    std::deque<PacketRecord> m_PacketTransitHistory;
     /**
      * Packets for which feedback has already been received. Information
      * contained in these records will be used to calculate the different

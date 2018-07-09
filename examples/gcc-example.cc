@@ -211,8 +211,8 @@ int main (int argc, char *argv[])
 
     if (log) {
         LogComponentEnable ("GccSender", LOG_INFO);
-        LogComponentEnable ("RmcatReceiver", LOG_INFO);
-        LogComponentEnable ("Packet", LOG_FUNCTION);
+        LogComponentEnable ("GccReceiver", LOG_INFO);
+        //LogComponentEnable ("Packet", LOG_FUNCTION);
     }
 
     // configure default TCP parameters
