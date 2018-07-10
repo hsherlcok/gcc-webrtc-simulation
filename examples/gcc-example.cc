@@ -85,6 +85,10 @@ static NodeContainer BuildExampleTopo (uint64_t bps,
     TrafficControlHelper tch;
     tch.Uninstall (devices);
 
+    AsciiTraceHelper ascii;
+    pointToPoint.EnableAsciiAll (ascii.CreateFileStream ("trace.tr"));
+    pointToPoint.EnablePcapAll ("pacap");
+
     return nodes;
 }
 
@@ -228,7 +232,7 @@ int main (int argc, char *argv[])
     const float maxBw =  GCC_DEFAULT_RMAX;
     const float initBw = GCC_DEFAULT_RINIT;
 
-    const float endTime = 1000.;
+    const float endTime = 500.;
 
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 
@@ -256,7 +260,7 @@ int main (int argc, char *argv[])
         InstallUDP (nodes.Get (0), nodes.Get (1), port++,
                     bandwidth, pktSize, start, end);
     }
-
+   
     std::cout << "Running Simulation..." << std::endl;
     Simulator::Stop (Seconds (endTime));
     Simulator::Run ();

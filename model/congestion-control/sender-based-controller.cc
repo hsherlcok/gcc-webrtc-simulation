@@ -291,8 +291,8 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
 
 void SenderBasedController::PrunTransitHistory(uint32_t tar_seq) {
     while(m_PacketTransitHistory.front().sequence < tar_seq) {
-        std::cout << "PrunTransitHistory:: " << m_PacketTransitHistory.front().sequence  << "\n";
-        std::cout << "PrunTransitHistory:: " << tar_seq << "\n";
+        // std::cout << "PrunTransitHistory:: " << m_PacketTransitHistory.front().sequence  << "\n";
+        // std::cout << "PrunTransitHistory:: " << tar_seq << "\n";
         m_PacketTransitHistory.pop_front();
     }
 }
@@ -482,7 +482,7 @@ bool SenderBasedController::getCurrentRecvRate(float& rrateBps) {
       assert(front.size <= m_pktSizeSum);
       const uint32_t bytes = pktcnt;
       rrateBps = float(bytes * 8) * 1000.f * 1000.f / (lastRxUs - curr);
-      std::cout << "getCUrrentRecvRate:: rrateBps( " << rrateBps << "\n";
+      // std::cout << "getCUrrentRecvRate:: rrateBps( " << rrateBps << "\n";
       return true;
 }
 

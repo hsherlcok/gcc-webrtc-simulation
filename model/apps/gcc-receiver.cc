@@ -101,7 +101,7 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
 
     if(m_timer + ns3::Seconds(LOGTIMER) < ns3::Simulator::Now())
     { 
-       std::cout<<"Node ID : "<<GetNode()->GetId()<<" ptr : "<<this<<" Recv Throuhput per 10s : "<<(double)m_numPackets*8/((ns3::Simulator::Now()-m_timer).ToDouble(ns3::Time::S)*1000*1000)<<std::endl;
+       std::cout<<ns3::Simulator::Now()<<" Node ID : "<<GetNode()->GetId()<<" ptr : "<<this<<" Recv Throuhput per 10s : "<<(double)m_numPackets*8/((ns3::Simulator::Now()-m_timer).ToDouble(ns3::Time::S)*1000*1000)<<std::endl;
        m_timer = ns3::Simulator::Now();
        m_numPackets = 0;
     }
@@ -128,7 +128,7 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
     m_movertt = m_movertt * .8 + (recvTimestampUs - txTimestampUs) * .2;
     
     if(m_rttT + ns3::Seconds(RTTLOG) < ns3::Simulator::Now()) {
-        std:cout << "movertt : " << m_movertt << std::endl;
+        std::cout << "movertt : " << m_movertt << std::endl;
         m_rttT = ns3::Simulator::Now();
     }
     
@@ -140,7 +140,7 @@ void GccReceiver::AddFeedback (uint16_t sequence,
                                  uint64_t recvTimestampUs)
 {
     auto res = m_header.AddFeedback (m_remoteSsrc, sequence, recvTimestampUs);
-    std::cout << "AddFeedback:: " << sequence << "\n";
+    // std::cout << "AddFeedback:: " << sequence << "\n";
     if (res == CCFeedbackHeader::CCFB_TOO_LONG) {
         SendFeedback (false);
         res = m_header.AddFeedback (m_remoteSsrc, sequence, recvTimestampUs);
