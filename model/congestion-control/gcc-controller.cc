@@ -198,8 +198,8 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
 //    expected_packets_since_last_loss_update_ += packets_lost+1;
 
     // Don't generate a loss rate until it can be based on enough packets.
-//    if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
-//      return;
+    if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
+      return;
 
     has_decreased_since_last_fraction_loss_ = false;
     int64_t lost_q8 = lost_packets_since_last_loss_update_ << 8;
@@ -467,7 +467,7 @@ bool GccController::processFeedback(uint64_t nowUs,
 
         std::cout<<"Now!!!!"<<now_ms<<"\t"<<last_update_ms_<<std::endl;
             
-			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 100){
+			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 200){
    		     	update_estimate = true;
    		   	} else if (D_hypothesis_ == 'O') {
        		 	uint32_t incoming_rate = (uint32_t)m_RecvR; 
@@ -899,7 +899,7 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
       		E_[0][0] * E_[1][1] - E_[0][1] * E_[1][0] >= 0 && E_[0][0] >= 0;
   	
 
-	//assert(positive_semi_definite);
+    assert(positive_semi_definite);
   
 
   	slope_ = slope_ + K[0] * residual;
