@@ -384,6 +384,8 @@ protected:
 
     InterLossState m_ilState;
 
+    uint32_t m_lost;
+
 private:
     uint64_t m_historyLengthUs; // in microseconds
 

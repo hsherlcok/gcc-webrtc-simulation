@@ -39,6 +39,7 @@
 #include <limits>
 #include <cstdio>
 #include <iostream>
+#include "ns3/simulator.h" 
 
 namespace rmcat {
 
@@ -94,9 +95,10 @@ GccController::GccController() :
  
     k_up_(0.0087),
     k_down_(0.039),
-    overusing_time_threshold_(100000),
+    overusing_time_threshold_(100),
     threshold_(12.5),
     last_update_ms_(-1),
+    ut_last_update_ms_(-1),
     D_prev_offset_(0.0),
     time_over_using_(-1),
     overuse_counter_(0),
@@ -191,8 +193,9 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
   // Check sequence number diff and weight loss report
   if (number_of_packets > 0) {
     // Accumulate reports.
-    lost_packets_since_last_loss_update_ += packets_lost;
-    expected_packets_since_last_loss_update_ += number_of_packets;
+    lost_packets_since_last_loss_update_ = packets_lost;
+    expected_packets_since_last_loss_update_ = number_of_packets;
+//    expected_packets_since_last_loss_update_ += packets_lost+1;
 
     // Don't generate a loss rate until it can be based on enough packets.
     if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
@@ -252,8 +255,9 @@ void GccController::UpdateEstimate(int64_t now_ms) {
   }
   int64_t time_since_packet_report_ms = now_ms - last_packet_report_ms_;
   int64_t time_since_feedback_ms = now_ms - last_feedback_ms_;
-  if (time_since_packet_report_ms < 1.2 * kFeedbackIntervalMs) {
+//  if (time_since_packet_report_ms < 1.2 * kFeedbackIntervalMs) {
     // We only care about loss above a given bitrate threshold.
+    //float loss = last_fraction_loss_ / 256.0f;
     float loss = last_fraction_loss_ / 256.0f;
      
     std::cout<<loss<<"\t"<<low_loss_threshold_<<"\t"<<high_loss_threshold_<<std::endl;
@@ -303,7 +307,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
         }
       }
     }
-  } else if (time_since_feedback_ms >
+/*  } else if (time_since_feedback_ms >
                  kFeedbackTimeoutIntervals * kFeedbackIntervalMs &&
              (last_timeout_ms_ == -1 ||
               now_ms - last_timeout_ms_ > kTimeoutIntervalMs)) {
@@ -315,7 +319,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
       expected_packets_since_last_loss_update_ = 0;
       last_timeout_ms_ = now_ms;
     }
-  }
+  }*/
 
 	//ddddddd
   std::cout << "here2 :" << new_bitrate << std::endl;
@@ -425,13 +429,9 @@ bool GccController::processFeedback(uint64_t nowUs,
 	static const int kMinBitrateBps = 10000;
 	static const int kMaxBitrateBps = 10000000;
   	static const int kInitialBitrateBps = 300000;
-  	static const int kDelayBasedBitrateBps = 350000;
-  	static const int kForcedHighBitrate = 2500000;
 
-	uint64_t now_ms = nowUs/1000;
+	uint64_t now_ms = ns3::Simulator::Now().GetMilliSeconds();
 	
-	if (now_ms - m_timer > 30){
-        m_timer = now_ms;
 	    if(!res) return false;
 
 	    if(!m_lastTimeCalcValid){
@@ -450,24 +450,24 @@ bool GccController::processFeedback(uint64_t nowUs,
 
   		uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
  	 	int64_t t_delta = l_inter_arrival/1000;
- 	 	int size_delta = l_inter_group_size;
+ 	 	int size_delta = l_inter_group_size * 1000;
 	
 		bool update_estimate = false;
-  		uint32_t target_bitrate_bps = 0;
-   		
    	 
 		std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
 		
 		if(ts_delta){
-			OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time);
-   		 	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time);
+			OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time/1000);
+   		 	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time/1000);
    	 	}
 
     	if (!update_estimate) {
       	// Check if it's time for a periodic update or if we should update because
       	// of an over-use.
-	
-			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > GetFeedbackInterval()) {
+
+        std::cout<<"Now!!!!"<<now_ms<<"\t"<<last_update_ms_<<std::endl;
+            
+			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 200){
    		     	update_estimate = true;
    		   	} else if (D_hypothesis_ == 'O') {
        		 	uint32_t incoming_rate = (uint32_t)m_RecvR; 
@@ -485,15 +485,13 @@ bool GccController::processFeedback(uint64_t nowUs,
 	
 		std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
 		if (update_estimate){	
-			target_bitrate_bps = Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
+			Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
 			UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+		    last_update_ms_ = now_ms;
+            logStats(now_ms*1000);
 	   	}
-		UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
-	
-		last_update_ms_ = now_ms;
-	
-		logStats(nowUs);
-	}    
+
+        UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
 	return res;
 }
 
@@ -514,16 +512,17 @@ void GccController::updateMetrics() {
     float rrate;
     bool rrateOK = getCurrentRecvRate(rrate);
     if (rrateOK) m_RecvR = rrate;
-
+	
     uint32_t nLoss, nPkt;
     float plr;
     bool plrOK = getPktLossInfo(nLoss, plr, nPkt);
     if (plrOK) {
-		
+
         m_ploss = nLoss;
-		m_Pkt = nPkt;
+        m_Pkt = nPkt;
         m_plr = plr;
-    }
+    }	
+
 }
 
 
@@ -669,6 +668,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
             AdditiveRateIncrease(now_ms, time_last_bitrate_change_);
         new_bitrate_bps += additive_increase_bps;
       } else {
+        std::cout<<"MI is called!!!"<<std::endl;
         uint32_t multiplicative_increase_bps = MultiplicativeRateIncrease(
             now_ms, time_last_bitrate_change_, new_bitrate_bps);
         new_bitrate_bps += multiplicative_increase_bps;
@@ -721,6 +721,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
     default:
       assert(false);
   }
+  std::cout<<"New Bit Rate : "<<new_bitrate_bps<<" "<<incoming_bitrate_bps<<" "<<current_bitrate_bps_<<std::endl;
   return ClampBitrate(new_bitrate_bps, incoming_bitrate_bps);
 }
 
@@ -896,7 +897,9 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
   	bool positive_semi_definite =
       		E_[0][0] + E_[1][1] >= 0 &&
       		E_[0][0] * E_[1][1] - E_[0][1] * E_[1][0] >= 0 && E_[0][0] >= 0;
-  	assert(positive_semi_definite);
+  	
+
+    assert(positive_semi_definite);
   
 
   	slope_ = slope_ + K[0] * residual;
@@ -943,22 +946,22 @@ void GccController::UpdateNoiseEstimate(double residual,
 
 void GccController::UpdateThreshold(double modified_offset, int64_t now_ms){
 
-  if (last_update_ms_ == -1)
-    last_update_ms_ = now_ms;
+  if (ut_last_update_ms_ == -1)
+    ut_last_update_ms_ = now_ms;
 
   if (fabs(modified_offset) > threshold_ + kMaxAdaptOffsetMs) {
     // Avoid adapting the threshold to big latency spikes, caused e.g.,
     // by a sudden capacity drop.
-    last_update_ms_ = now_ms;
+    ut_last_update_ms_ = now_ms;
     return;
   }
 
   const double k = fabs(modified_offset) < threshold_ ? k_down_ : k_up_;
   const int64_t kMaxTimeDeltaMs = 100;
-  int64_t time_delta_ms = std::min(now_ms - last_update_ms_, kMaxTimeDeltaMs);
+  int64_t time_delta_ms = std::min(now_ms - ut_last_update_ms_, kMaxTimeDeltaMs);
   threshold_ += k * (fabs(modified_offset) - threshold_) * time_delta_ms;
   threshold_ = rtc::SafeClamp(threshold_, 6.f, 600.f);
-  last_update_ms_ = now_ms;
+  ut_last_update_ms_ = now_ms;
 	
 }
 
@@ -974,7 +977,7 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
 
 	
   const double T = std::min(num_of_deltas, kMinNumDeltas) * offset;
-  std::cout << "flag overusing : " << ts_delta << "\t" << offset<< "\t"  << T << "\t" << threshold_ << "\t" << time_over_using_ << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
+  std::cout << "flag overusing : " << D_prev_offset_ << "\t" << offset<< "\t"  << T << "\t" << threshold_ << "\t" << time_over_using_ << "\t" << overusing_time_threshold_ << "\t" << overuse_counter_ << std::endl; 
   if (T > threshold_) {
     if (time_over_using_ == -1) {
       // Initialize the timer. Assume that we've been
@@ -986,8 +989,9 @@ char GccController::OveruseDetectorDetect(double offset, double ts_delta, int nu
       time_over_using_ += ts_delta;
     }
     overuse_counter_++;
+
     if (time_over_using_ > overusing_time_threshold_ && overuse_counter_ > 1) {
-      if (offset >= prev_offset_) {
+      if (offset >= D_prev_offset_) {
         time_over_using_ = 0;
         overuse_counter_ = 0;
         D_hypothesis_ = 'O';

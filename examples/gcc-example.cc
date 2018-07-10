@@ -212,7 +212,6 @@ int main (int argc, char *argv[])
     if (log) {
         LogComponentEnable ("GccSender", LOG_INFO);
         LogComponentEnable ("GccReceiver", LOG_INFO);
-        LogComponentEnable ("BulkSendApplication", LOG_LEVEL_ALL);
         //LogComponentEnable ("Packet", LOG_FUNCTION);
     }
 
@@ -235,14 +234,14 @@ int main (int argc, char *argv[])
 
     int port = 8000;
     for (int i = 0; i < nWebRTC; i++) {
-        auto start = 10. * i;
+        auto start = 0.1 * i;
         auto end = std::max (start + 1., endTime - start);
         InstallApps (gcc, nodes.Get (0), nodes.Get (1), port++,
                      initBw, minBw, maxBw, start, end);
     }
 
     for (int i = 0; i < nTcp; i++) {
-        auto start = 10+0.01 * i;
+        auto start = 10+ 10.*i;
         auto end = std::max (start + 1., endTime - start);
         InstallTCP (nodes.Get (0), nodes.Get (1), port++, start, end);
     }
