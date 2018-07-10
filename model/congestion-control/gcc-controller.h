@@ -192,6 +192,7 @@ private:
     double overusing_time_threshold_;
     double threshold_;
     int64_t last_update_ms_;
+    int64_t ut_last_update_ms_;
     double D_prev_offset_;
     double time_over_using_;
     int overuse_counter_;

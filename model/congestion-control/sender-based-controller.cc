@@ -71,6 +71,7 @@ SenderBasedController::SenderBasedController()
   m_maxBw{RMCAT_CC_DEFAULT_RMAX},
   m_logCallback{NULL},
   m_ilState{},
+  m_lost{0},
   m_historyLengthUs{DEFAULT_HISTORY_LENGTH_US} {
       setDefaultId();
 }
@@ -207,8 +208,10 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
 
     assert(m_inTransitPackets.back().sequence == m_lastSequence);
 
+    m_lost = 0;
     while (lessThan(m_inTransitPackets.front().sequence, sequence)) {
         // Packet lost or out of order. Remove stale entry
+        m_lost++;
         m_inTransitPackets.pop_front();
         // Note: we can't tell whether the media (forward path) packet
         //     or the feedback (backward path) packet was lost.
@@ -413,6 +416,7 @@ bool SenderBasedController::getPktLossInfo(uint32_t& nLoss, float& plr, uint32_t
                              - m_packetHistory.front().sequence;
     assert(seqSpan >= m_packetHistory.size());
     nLoss = seqSpan - m_packetHistory.size();
+//    nLoss = m_lost;
     plr = float(nLoss) / float(seqSpan);
 	nPkt = seqSpan;
     return true;
