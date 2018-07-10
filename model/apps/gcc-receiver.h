@@ -65,6 +65,8 @@ private:
 
     double m_numPackets;
     ns3::Time m_timer;
+    ns3::Time m_rttT;
+    double m_movertt;
 };
 
 }

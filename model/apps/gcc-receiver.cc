@@ -35,7 +35,7 @@
 NS_LOG_COMPONENT_DEFINE ("GccReceiver");
 
 #define LOGTIMER 10
-
+#define RTTLOG 1
 namespace ns3 {
 GccReceiver::GccReceiver ()
 : m_running{false}
@@ -48,6 +48,7 @@ GccReceiver::GccReceiver ()
 , m_header{}
 , m_sendEvent{}
 , m_periodUs{RMCAT_FEEDBACK_PERIOD_US}
+, m_movertt{0}
 {}
 
 GccReceiver::~GccReceiver () {}
@@ -73,6 +74,9 @@ void GccReceiver::StartApplication ()
 
     m_timer = ns3::Seconds(0);
     m_numPackets = 0;
+   
+    m_movertt = 0;
+    m_rttT = ns3::Seconds(0);
 }
 
 void GccReceiver::StopApplication ()
@@ -92,7 +96,7 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
     Address remoteAddr{};
     auto packet = m_socket->RecvFrom (remoteAddr);
    
-    std::cout<<"shit : " << packet->GetSize()<<std::endl;
+    // std::cout<<"shit : " << packet->GetSize()<<std::endl;
     m_numPackets += packet->GetSize();
 
     if(m_timer + ns3::Seconds(LOGTIMER) < ns3::Simulator::Now())
@@ -119,10 +123,16 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
         NS_ASSERT (m_srcIp == srcIp);
         NS_ASSERT (m_srcPort == srcPort);
     }
-
+    uint64_t txTimestampUs = header.GetTimestamp();
     uint64_t recvTimestampUs = Simulator::Now ().GetMicroSeconds ();
-    AddFeedback (header.GetSequence (), recvTimestampUs);
+    m_movertt = m_movertt * .8 + (recvTimestampUs - txTimestampUs) * .2;
     
+    if(m_rttT + ns3::Seconds(RTTLOG) < ns3::Simulator::Now()) {
+        std:cout << "movertt : " << m_movertt << std::endl;
+        m_rttT = ns3::Simulator::Now();
+    }
+    
+    AddFeedback (header.GetSequence (), recvTimestampUs);
     m_sendEvent = Simulator::ScheduleNow(&GccReceiver::SendFeedback, this, false);
 }
 
