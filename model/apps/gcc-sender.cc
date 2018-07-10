@@ -289,6 +289,8 @@ void GccSender::EnqueuePacket ()
                  << ", buffer bytes: " << m_PacingQBytes);
 
     double secsToNextEnqPacket = codec->second;
+    // std::cout << "secToNextEnqPacket:: " << secsToNextEnqPacket << "\n";
+
     Time tNext{Seconds (secsToNextEnqPacket)};
     m_enqueueEvent = Simulator::Schedule (tNext, &GccSender::EnqueuePacket, this);
 
@@ -308,7 +310,8 @@ void GccSender::EnqueuePacket ()
                      << ", usToNextSentPacket " << usToNextSentPacket
                      << ", m_rBitrate " << m_rBitrate
                      << ", secsToNextEnqPacket " << secsToNextEnqPacket);
-
+        
+       //  std::cout << "usToNextSentPacket:: " << usToNextSentPacket << "\n";
         Time tNext{MicroSeconds (usToNextSentPacket)};
         m_sendEvent = Simulator::Schedule (tNext, &GccSender::SendPacket, this, usToNextSentPacket);
     }
@@ -333,14 +336,16 @@ void GccSender::SendPacket (uint64_t usSlept)
 //    std::cout << "SendPacket::usSlept: " << usSlept << "\n";
     // Synthetic oversleep: random uniform [0% .. 1%]
     // TODO WHY RAND USED?
-    uint64_t oversleepUs = usSlept * (rand () % 100) / 10000;
+//    uint64_t oversleepUs = usSlept * (rand () % 100) / 10000;
+    
+    uint64_t oversleepUs = 0;
     Time tOver{MicroSeconds (oversleepUs)};
     m_sendOversleepEvent = Simulator::Schedule (tOver, &GccSender::SendOverSleep,
                                                 this, bytesToSend);
 
     // usToNextSentPacketD = Time to send current data frame.
     // schedule next sendData
-    const double usToNextSentPacketD = double (bytesToSend) * 8. * 1000. * 1000. / m_rBitrate;
+    const double usToNextSentPacketD = double (bytesToSend) * 8. / m_rBitrate;
     const uint64_t usToNextSentPacket = uint64_t (usToNextSentPacketD);
 
     if (!USE_BUFFER || m_PacingQ.size () == 0) {
@@ -406,15 +411,20 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
     NS_ASSERT (res);
     for (auto& item : feedback) {
         const auto sequence = item.first;
-        std::cout << "recv seq. :: " << sequence << "\n";
+        std::cout << m_ssrc << "\trecv seq. :: " << sequence << "\n";
         const auto timestampUs = item.second.m_timestampUs;
         const auto curr_pkt_send_time = m_controller->GetPacketTxTimestamp(sequence);
 
         if(m_firstFeedback){
+            std::cout << m_ssrc << "\tFirst Feedback\n";
             m_gid = 0;
             m_curr_group_start_seq = sequence;		// Sequence of Group's first packet
             m_curr_group_time = m_controller->GetPacketTxTimestamp(sequence);        // Departure time of Group's first packet
             m_firstFeedback = false;
+
+            m_prev_time = timestampUs;
+            m_prev_seq = sequence;
+            continue;
         }
         /* 
         std::cout << "#. " << curr_pkt_send_time << "\n";
@@ -423,10 +433,10 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 */
         // 5000micro seconds = BURST_TIME
         if((curr_pkt_send_time - m_curr_group_time) >= 5000){
+            std::cout << m_ssrc << "\tGroup end Detect with c1.\n";
             // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
             if(m_gid == 0){
                 // First Group
-                std::cout << "First Group End\n";
 	        m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
                 m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
                 m_curr_group_start_seq = sequence;
@@ -434,7 +444,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
 		m_curr_group_time = curr_pkt_send_time;
                  
-                std::cout << "First Group:: \n";
+                std::cout << m_ssrc << "\tFirst Group:: \n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
                 std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << m_curr_group_time << "\n";
@@ -460,7 +470,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 
 //	        std::cout << "**. " << m_group_size << "\n";
                 m_curr_group_start_seq = sequence;
-                std::cout << "Group Changed\n";
+	        std::cout << m_ssrc << "\t" << m_gid << " Group Changed\n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
                 std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << l_inter_arrival << "\n";
@@ -488,8 +498,10 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 	// auto t_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);
         auto t_inter_delay_var = l_inter_arrival - l_inter_departure;
         if(t_inter_arrival < 5000 && t_inter_delay_var < 0){
-            const auto ecn = item.second.m_ecn;
+            std::cout << m_ssrc << "\tNo Group change by c2.\n";
 
+            const auto ecn = item.second.m_ecn;
+           
             NS_ASSERT (timestampUs <= nowUs);
         
             m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size_inter, m_prev_time, ecn);
@@ -500,10 +512,10 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 
             continue;
         } else {
+            std::cout << "Group change by c2.\n";
             // Group changed. Calculate Inter-Arrival Time and Inter-Departure Time.
             if(m_gid == 0){
                 // First Group
-                std::cout << "First Group End\n";
 	        m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
                 m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
                 m_curr_group_start_seq = sequence;
@@ -511,7 +523,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
 		m_curr_group_time = curr_pkt_send_time;
                 
-                std::cout << "First Group:: \n";
+                std::cout << m_ssrc << "\tFirst Group:: \n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
                 std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << m_curr_group_time << "\n";
@@ -537,7 +549,7 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 
 	//        std::cout << "**. " << m_group_size << "\n";
                 m_curr_group_start_seq = sequence;
-                std::cout << "Group Changed\n";
+                std::cout << m_ssrc << "\tGroup Changed\n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
                 std::cout << "2. " << m_prev_group_atime << "\n";
                 std::cout << "3. " << l_inter_arrival << "\n";
