@@ -1,4 +1,4 @@
-*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+# -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
 
 ###############################################################################
 #  Copyright 2016-2017 Cisco Systems, Inc.                                    #
@@ -19,4 +19,6 @@
 
 def build(bld):
     obj = bld.create_ns3_program('gcc-example', ['ns3-rmcat'])
+    obj.source = 'gcc-example.cc',
+    obj = bld.create_ns3_program('rmcat-simple-eval', ['ns3-rmcat'])
     obj.source = 'rmcat-simple-eval.cc',
