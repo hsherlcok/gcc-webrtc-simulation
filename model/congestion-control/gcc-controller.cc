@@ -82,6 +82,7 @@ GccController::GccController() :
     m_plr{0.f},
     m_RecvR{0.}, 
 	m_timer{0},
+	m_plrmoving_avg{0.f},	
 
     num_of_deltas_(0),
     slope_(8.0/512.0),	//need initial value
@@ -471,6 +472,12 @@ bool GccController::processFeedback(uint64_t nowUs,
 
 		UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
         UpdatePacketsLost(m_ploss, m_Pkt, now_ms);
+
+
+		//loss ratio moving average
+		m_plrmoving_avg = m_plrmoving_avg * 0.8f + m_plr * 0.2f;
+		std::cout << "plr moving avg : " << m_plrmoving_avg << std::endl;
+		
 
 	return res;
 }
