@@ -251,6 +251,12 @@ void GccSender::StartApplication ()
     }
     m_socket->SetRecvCallback (MakeCallback (&GccSender::RecvPacket, this));
 
+    m_prev_time = ns3::Simulator::Now().GetMicroSeconds();
+    m_curr_group_time = ns3::Simulator::Now().GetMicroSeconds();
+
+    m_prev_group_atime = ns3::Simulator::Now().GetMicroSeconds();
+	// Arrival Time of previous group.
+
     m_enqueueEvent = Simulator::Schedule (Seconds (0.0), &GccSender::EnqueuePacket, this);
     m_nextSendTstmpUs = 0;
 }

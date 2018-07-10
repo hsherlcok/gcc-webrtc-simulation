@@ -198,8 +198,8 @@ void GccController::UpdatePacketsLost(int packets_lost, int number_of_packets, i
 //    expected_packets_since_last_loss_update_ += packets_lost+1;
 
     // Don't generate a loss rate until it can be based on enough packets.
-    if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
-      return;
+//    if (expected_packets_since_last_loss_update_ < kLimitNumPackets)
+//      return;
 
     has_decreased_since_last_fraction_loss_ = false;
     int64_t lost_q8 = lost_packets_since_last_loss_update_ << 8;
@@ -300,7 +300,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
           //   where packetLoss = 256*lossRate;
           new_bitrate = static_cast<uint32_t>(
               (current_bitrate_bps_ *
-               static_cast<double>(512 - last_fraction_loss_/2)) /
+               static_cast<double>(512 - last_fraction_loss_)) /
               512.0);
           has_decreased_since_last_fraction_loss_ = true;
 		std::cout << "here: " << new_bitrate << std::endl;
@@ -467,7 +467,7 @@ bool GccController::processFeedback(uint64_t nowUs,
 
         std::cout<<"Now!!!!"<<now_ms<<"\t"<<last_update_ms_<<std::endl;
             
-			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 10){
+			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 100){
    		     	update_estimate = true;
    		   	} else if (D_hypothesis_ == 'O') {
        		 	uint32_t incoming_rate = (uint32_t)m_RecvR; 
@@ -487,11 +487,11 @@ bool GccController::processFeedback(uint64_t nowUs,
 		if (update_estimate){	
 			Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
 			UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
-	        UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
 		    last_update_ms_ = now_ms;
             logStats(now_ms*1000);
 	   	}
-	   
+
+        UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
 	return res;
 }
 
@@ -721,6 +721,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
     default:
       assert(false);
   }
+  std::cout<<"New Bit Rate : "<<new_bitrate_bps<<" "<<incoming_bitrate_bps<<" "<<current_bitrate_bps_<<std::endl;
   return ClampBitrate(new_bitrate_bps, incoming_bitrate_bps);
 }
 
@@ -750,7 +751,7 @@ uint32_t GccController::MultiplicativeRateIncrease(
     alpha = pow(alpha, time_since_last_update_ms / 1000.0);
   }
   uint32_t multiplicative_increase_bps =
-      std::max(current_bitrate_bps * (alpha - 1.0), 1000000.0);
+      std::max(current_bitrate_bps * (alpha - 1.0), 1000.0);
   return multiplicative_increase_bps;
 }
 
@@ -898,7 +899,7 @@ void GccController::OveruseEstimatorUpdate(int64_t t_delta, double ts_delta, int
       		E_[0][0] * E_[1][1] - E_[0][1] * E_[1][0] >= 0 && E_[0][0] >= 0;
   	
 
-	assert(positive_semi_definite);
+	//assert(positive_semi_definite);
   
 
   	slope_ = slope_ + K[0] * residual;
