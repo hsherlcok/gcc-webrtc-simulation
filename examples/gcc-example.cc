@@ -228,20 +228,20 @@ int main (int argc, char *argv[])
     const float maxBw =  GCC_DEFAULT_RMAX;
     const float initBw = GCC_DEFAULT_RINIT;
 
-    const float endTime = 300.;
+    const float endTime = 1000.;
 
     NodeContainer nodes = BuildExampleTopo (linkBw, msDelay, msQDelay);
 
     int port = 8000;
     for (int i = 0; i < nWebRTC; i++) {
-        auto start = 0.1 * i;
+        auto start = 10. * i;
         auto end = std::max (start + 1., endTime - start);
         InstallApps (gcc, nodes.Get (0), nodes.Get (1), port++,
                      initBw, minBw, maxBw, start, end);
     }
 
     for (int i = 0; i < nTcp; i++) {
-        auto start = 10+ 10.*i;
+        auto start = 17+ 17.*i;
         auto end = std::max (start + 1., endTime - start);
         InstallTCP (nodes.Get (0), nodes.Get (1), port++, start, end);
     }

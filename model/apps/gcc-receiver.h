@@ -62,6 +62,9 @@ private:
     CCFeedbackHeader m_header;
     EventId m_sendEvent;
     uint64_t m_periodUs;
+
+    double m_numPackets;
+    ns3::Time m_timer;
 };
 
 }

@@ -34,6 +34,8 @@
 
 NS_LOG_COMPONENT_DEFINE ("GccReceiver");
 
+#define LOGTIMER 10
+
 namespace ns3 {
 GccReceiver::GccReceiver ()
 : m_running{false}
@@ -68,6 +70,9 @@ void GccReceiver::StartApplication ()
     m_ssrc = rand ();
     m_header.SetSendSsrc (m_ssrc);
     Time tFirst {MicroSeconds (m_periodUs)};
+
+    m_timer = ns3::Seconds(0);
+    m_numPackets = 0;
 }
 
 void GccReceiver::StopApplication ()
@@ -86,6 +91,17 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
 
     Address remoteAddr{};
     auto packet = m_socket->RecvFrom (remoteAddr);
+   
+    std::cout<<"shit : " << packet->GetSize()<<std::endl;
+    m_numPackets += packet->GetSize();
+
+    if(m_timer + ns3::Seconds(LOGTIMER) < ns3::Simulator::Now())
+    { 
+       std::cout<<"Node ID : "<<GetNode()->GetId()<<" ptr : "<<this<<" Recv Throuhput per 10s : "<<(double)m_numPackets*8/((ns3::Simulator::Now()-m_timer).ToDouble(ns3::Time::S)*1000*1000)<<std::endl;
+       m_timer = ns3::Simulator::Now();
+       m_numPackets = 0;
+    }
+
     NS_ASSERT (packet);
     RtpHeader header{};
     NS_LOG_INFO ("GccReceiver::RecvPacket, " << packet->ToString ());
