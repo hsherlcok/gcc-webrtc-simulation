@@ -41,6 +41,8 @@
 #include <iostream>
 #include "ns3/simulator.h" 
 
+#define LOSS_TIMER 1000
+
 namespace rmcat {
 
 enum { kMinFramePeriodHistoryLength = 60 };
@@ -82,6 +84,8 @@ GccController::GccController() :
     m_plr{0.f},
     m_RecvR{0.}, 
 	m_timer{0},
+	prev_seq_loss{0},
+	loss_moving_avg{0.0},
 	m_plrmoving_avg{0.f},	
 
     num_of_deltas_(0),
@@ -414,7 +418,25 @@ bool GccController::processFeedback(uint64_t nowUs,
   	static const int kInitialBitrateBps = 300000;
 
 	uint64_t now_ms = ns3::Simulator::Now().GetMilliSeconds();
-	
+
+		if(prev_seq_loss == 0){
+			//initialize it
+			prev_seq_loss = sequence ;
+			m_timer = now_ms;
+		}else if(m_timer + LOSS_TIMER < now_ms){			
+			int delta_seq = sequence - prev_seq_loss;
+		
+			if(delta_seq != 0){
+				float loss_ratio = (float)loss_counter / (float)delta_seq;
+				loss_moving_avg = (loss_moving_avg * 0.8) + (loss_ratio * 0.2);				
+				std::cout << "loss rate every " << LOSS_TIMER << "ms : " << loss_ratio << ", moving_avg : " << loss_moving_avg << std::endl;
+
+			}
+			loss_counter = 0;
+			prev_seq_loss = sequence + 1;
+			m_timer = now_ms;
+		}
+
 	    if(!res) return false;
 
 	    if(!m_lastTimeCalcValid){
@@ -437,11 +459,12 @@ bool GccController::processFeedback(uint64_t nowUs,
 	
 		bool update_estimate = false;
    	 
-		if(m_timer  < now_ms ){
-			m_timer = now_ms;
-			OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time/1000);
-   		 	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time/1000);
-   	 	}
+		
+		
+
+		OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time/1000);
+   		OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time/1000);
+   	 	
 
     	if (!update_estimate) {
       	// Check if it's time for a periodic update or if we should update because
@@ -472,12 +495,6 @@ bool GccController::processFeedback(uint64_t nowUs,
 
 		UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
         UpdatePacketsLost(m_ploss, m_Pkt, now_ms);
-
-
-		//loss ratio moving average
-		m_plrmoving_avg = m_plrmoving_avg * 0.8f + m_plr * 0.2f;
-		std::cout << "plr moving avg : " << m_plrmoving_avg << std::endl;
-		
 
 	return res;
 }

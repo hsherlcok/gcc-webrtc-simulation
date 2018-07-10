@@ -73,6 +73,7 @@ SenderBasedController::SenderBasedController()
   m_logCallback{NULL},
   m_ilState{},
   m_lost{0},
+  loss_counter{0},
   m_historyLengthUs{DEFAULT_HISTORY_LENGTH_US} {
       setDefaultId();
 }
@@ -104,7 +105,6 @@ void SenderBasedController::reset() {
     m_lastSequence = 0;
     m_baseDelayUs = 0;
     m_inTransitPackets.clear();
-    m_packetHistory.clear();
     m_recvHistory.clear();
     m_pktSizeSum = 0;
     m_initBw = RMCAT_CC_DEFAULT_RINIT;
@@ -214,6 +214,7 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     while (lessThan(m_inTransitPackets.front().sequence, sequence)) {
         // Packet lost or out of order. Remove stale entry
         m_lost++;
+		loss_counter++;
         m_inTransitPackets.pop_front();
         // Note: we can't tell whether the media (forward path) packet
         //     or the feedback (backward path) packet was lost.

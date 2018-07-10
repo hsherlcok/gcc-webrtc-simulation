@@ -174,6 +174,8 @@ private:
     float m_plr;       /**< packet loss ratio within packet history window */
     float m_RecvR;     /**< updated receiving rate in bps */
 	uint64_t m_timer;
+	int prev_seq_loss;  // count loss ratio
+	float loss_moving_avg;	
 	float m_plrmoving_avg;
 	
 /*Overuse Estimator variable*/
