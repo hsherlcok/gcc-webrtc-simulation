@@ -64,6 +64,7 @@ SenderBasedController::SenderBasedController()
   m_inTransitPackets{},
   m_PacketTransitHistory{},
   m_packetHistory{},
+  m_recvHistory{},
   m_pktSizeSum{0},
   m_id{},
   m_initBw{RMCAT_CC_DEFAULT_RINIT},
@@ -104,6 +105,7 @@ void SenderBasedController::reset() {
     m_baseDelayUs = 0;
     m_inTransitPackets.clear();
     m_packetHistory.clear();
+    m_recvHistory.clear();
     m_pktSizeSum = 0;
     m_initBw = RMCAT_CC_DEFAULT_RINIT;
     m_minBw = RMCAT_CC_DEFAULT_RMIN;
@@ -268,6 +270,7 @@ bool SenderBasedController::processFeedback(uint64_t nowUs,
     updateInterLossData(packet);
 
     m_packetHistory.push_back(packet);
+    m_recvHistory.push_back(packet);
     m_pktSizeSum += packet.size;
 
     // Garbage collect history to keep its length within limits
@@ -436,7 +439,7 @@ bool SenderBasedController::getPktLossInfo(uint32_t& nLoss, float& plr, uint32_t
     return true;
 }
 
-bool SenderBasedController::getCurrentRecvRate(float& rrateBps) const {
+bool SenderBasedController::getCurrentRecvRate(float& rrateBps) {
     if (m_packetHistory.size() < MIN_PACKET_LOGLEN) {
         std::cerr << "SenderBasedController::getCurrentRecvRate,"
                   << " packet history too short: "
@@ -459,11 +462,28 @@ bool SenderBasedController::getCurrentRecvRate(float& rrateBps) const {
         return false;
     }
 
-    // Technically, the first packet is out of the calculated time span
-    assert(front.size <= m_pktSizeSum);
-    const uint32_t bytes = m_pktSizeSum - front.size;
-    rrateBps = float(bytes * 8) * 1000.f * 1000.f / float(timeSpanUs);
-    return true;
+    uint64_t curr = lastRxUs;
+    uint32_t pktcnt = 0;
+    size_t i = m_recvHistory.size() - 1;
+
+    while ((lastRxUs - curr) < 1000000){
+        pktcnt += m_recvHistory.at(i).size;
+        curr = m_recvHistory.at(i).txTimestampUs + m_recvHistory.at(i).owdUs;
+       
+       if(i == 0)
+          return false;
+        i--;
+     }
+
+     for(uint32_t j = 0;j<=i;j++)
+        m_recvHistory.pop_front();
+    
+      // Technically, the first packet is out of the calculated time span
+      assert(front.size <= m_pktSizeSum);
+      const uint32_t bytes = pktcnt;
+      rrateBps = float(bytes * 8) * 1000.f * 1000.f / (lastRxUs - curr);
+      std::cout << "getCUrrentRecvRate:: rrateBps( " << rrateBps << "\n";
+      return true;
 }
 
 

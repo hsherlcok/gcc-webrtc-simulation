@@ -235,10 +235,12 @@ void GccController::UpdateDelayBasedEstimate(
 void GccController::UpdateEstimate(int64_t now_ms) {
   uint32_t new_bitrate = current_bitrate_bps_;
   // We trust the REMB and/or delay-based estimate during the first 2 seconds if
+    std::cout<<"New bitrate 1 : "<<new_bitrate<<std::endl;
   // we haven't had any packet loss reported, to allow startup bitrate probing.
   if (last_fraction_loss_ == 0 && IsInStartPhase(now_ms)) {
     new_bitrate = std::max(delay_based_bitrate_bps_, new_bitrate);
 
+    std::cout<<"New bitrate 2 : "<<new_bitrate<<std::endl;
     if (new_bitrate != current_bitrate_bps_) {
       min_bitrate_history_.clear();
       min_bitrate_history_.push_back(
@@ -247,6 +249,7 @@ void GccController::UpdateEstimate(int64_t now_ms) {
       return;
     }
   }
+    std::cout<<"New bitrate 3 : "<<new_bitrate<<std::endl;
   UpdateMinHistory(now_ms);
   if (last_packet_report_ms_ == -1) {
     // No feedback received.
@@ -356,7 +359,7 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
                                                          uint32_t bitrate_bps) {
   std::cout << "1 " << bitrate_bps  << " \t" << current_bitrate_bps_<< std::endl;
 
-  if (delay_based_bitrate_bps_ > 0 && bitrate_bps > delay_based_bitrate_bps_) {
+  if (delay_based_bitrate_bps_ > 0 && bitrate_bps > delay_based_bitrate_bps_ ) {
     bitrate_bps = delay_based_bitrate_bps_;
   }
  
@@ -366,7 +369,7 @@ void GccController::CapBitrateToThresholds(int64_t now_ms,
     bitrate_bps = max_bitrate_configured_;
   }
 
-  std::cout << "3  " << bitrate_bps << std::endl;
+  std::cout << "3  " << bitrate_bps << " " <<max_bitrate_configured_ << std::endl;
 
   if (bitrate_bps < min_bitrate_configured_) {
     if (last_low_bitrate_log_ms_ == -1 ||
@@ -427,11 +430,12 @@ bool GccController::processFeedback(uint64_t nowUs,
                                                             l_inter_departure,
                                                             l_inter_delay_var, l_inter_group_size, l_arrival_time,  ecn);		
 	static const int kMinBitrateBps = 10000;
-	static const int kMaxBitrateBps = 10000000;
+	static const int kMaxBitrateBps = 1500000;
   	static const int kInitialBitrateBps = 300000;
 
 	uint64_t now_ms = ns3::Simulator::Now().GetMilliSeconds();
 	
+		std::cout << "48  " <<  D_hypothesis_ << std::endl;
 	    if(!res) return false;
 
 	    if(!m_lastTimeCalcValid){
@@ -450,15 +454,17 @@ bool GccController::processFeedback(uint64_t nowUs,
 
   		uint32_t ts_delta = (uint32_t) l_inter_departure/1000;
  	 	int64_t t_delta = l_inter_arrival/1000;
- 	 	int size_delta = l_inter_group_size * 1000;
+ 	 	int size_delta = l_inter_group_size;
 	
 		bool update_estimate = false;
    	 
 		std::cout<<ts_delta<<"\t"<<l_inter_departure<<std::endl;
-		
-		if(ts_delta){
+		if(m_timer  < now_ms ){
+			m_timer = now_ms;
+			std::cout << "28  " <<  D_hypothesis_ << std::endl;
 			OveruseEstimatorUpdate(t_delta, ts_delta, size_delta, D_hypothesis_, l_arrival_time/1000);
    		 	OveruseDetectorDetect(offset_, ts_delta, num_of_deltas_, l_arrival_time/1000);
+			std::cout << "18  " <<  D_hypothesis_ << std::endl;
    	 	}
 
     	if (!update_estimate) {
@@ -467,11 +473,12 @@ bool GccController::processFeedback(uint64_t nowUs,
 
         std::cout<<"Now!!!!"<<now_ms<<"\t"<<last_update_ms_<<std::endl;
             
-			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 200){
+			if (last_update_ms_ == -1 || (uint64_t)now_ms - last_update_ms_ > 1000){
    		     	update_estimate = true;
    		   	} else if (D_hypothesis_ == 'O') {
        		 	uint32_t incoming_rate = (uint32_t)m_RecvR; 
-        		if (incoming_rate && TimeToReduceFurther(now_ms, incoming_rate)) {
+
+				if (incoming_rate && TimeToReduceFurther(now_ms, incoming_rate)) {
           			update_estimate = true;
         		}
       		}
@@ -485,13 +492,17 @@ bool GccController::processFeedback(uint64_t nowUs,
 	
 		std::cout << m_RecvR << "\t" << current_bitrate_bps_ << std::endl;
 		if (update_estimate){	
+			std::cout << "SSIB" << D_hypothesis_ << std::endl;
 			Update(D_hypothesis_, (uint32_t)m_RecvR, var_noise_, now_ms);
-			UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
 		    last_update_ms_ = now_ms;
             logStats(now_ms*1000);
 	   	}
 
-        UpdatePacketsLost(m_ploss, m_Pkt, now_ms); 	 
+		UpdateDelayBasedEstimate(now_ms, current_bitrate_bps_);
+        UpdatePacketsLost(m_ploss, m_Pkt, now_ms);
+
+		 	 
+			std::cout << "38  " <<  D_hypothesis_ << "rate : " << current_bitrate_bps_<< std::endl;
 	return res;
 }
 
@@ -637,7 +648,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
   uint32_t incoming_bitrate_bps = incoming_bitrate;
   if (incoming_bitrate)
     latest_incoming_bitrate_bps_ = incoming_bitrate;
-
+  std::cout << "SSyang" << bw_state << std::endl;
   // An over-use should always trigger us to reduce the bitrate, even though
   // we have not yet established our first estimate. By acting on the over-use,
   // we will end up with a valid estimate.
@@ -645,7 +656,10 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
       bw_state == 'O')
     return current_bitrate_bps_;
 
+  std::cout<<"nigimi "<<bw_state<<std::endl;
   ChangeState(bw_state, now_ms);
+
+  std::cout << "shibal " << rate_control_state_ << std::endl;
   // Calculated here because it's used in multiple places.
   const float incoming_bitrate_kbps = incoming_bitrate_bps / 1000.0f;
   // Calculate the max bit rate std dev given the normalized
@@ -654,9 +668,11 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
       sqrt(var_max_bitrate_kbps_ * avg_max_bitrate_kbps_);
   switch (rate_control_state_) {
     case 'H':
+      std::cout<<"1"<<std::endl;
       break;
 
     case 'I':
+      std::cout<<"2"<<std::endl;
       if (avg_max_bitrate_kbps_ >= 0 &&
           incoming_bitrate_kbps >
               avg_max_bitrate_kbps_ + 3 * std_max_bit_rate) {
@@ -678,6 +694,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
       break;
 
     case 'D':
+      std::cout<<"3"<<std::endl;
       // Set bit rate to something slightly lower than max
       // to get rid of any self-induced delay.
       new_bitrate_bps =
@@ -721,7 +738,7 @@ uint32_t GccController::ChangeBitrate(uint32_t new_bitrate_bps,
     default:
       assert(false);
   }
-  std::cout<<"New Bit Rate : "<<new_bitrate_bps<<" "<<incoming_bitrate_bps<<" "<<current_bitrate_bps_<<std::endl;
+  std::cout<<rate_control_state_<<" New Bit Rate : "<<new_bitrate_bps<<" "<<incoming_bitrate_bps<<" "<<current_bitrate_bps_<<std::endl;
   return ClampBitrate(new_bitrate_bps, incoming_bitrate_bps);
 }
 
@@ -788,7 +805,9 @@ void GccController::UpdateMaxBitRateEstimate(float incoming_bitrate_kbps) {
 
 void GccController::ChangeState(char bw_state,
                                   int64_t now_ms) {
-  switch (bw_state) {
+  
+	std::cout << "jot " << rate_control_state_<<bw_state << std::endl;
+   switch (bw_state) {
     case 'N':
       if (rate_control_state_ == 'H') {
         time_last_bitrate_change_ = now_ms;
@@ -806,6 +825,7 @@ void GccController::ChangeState(char bw_state,
     default:
       assert(false);
   }
+	std::cout << "gatda " << rate_control_state_ <<bw_state<< std::endl;
 }
 
 void GccController::ChangeRegion(char region) {

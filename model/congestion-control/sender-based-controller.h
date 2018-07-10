@@ -332,7 +332,7 @@ protected:
      *         calculate the metrics (output parameter is not valid). True
      *         otherwise
      */
-    bool getCurrentRecvRate(float& rrateBps) const;
+    bool getCurrentRecvRate(float& rrateBps) ;
 
     /**
      * Calculate the current average inter-loss interval. A loss event is
@@ -368,6 +368,7 @@ protected:
      * metrics that congestion controllers use
      */
     std::deque<PacketRecord> m_packetHistory;
+    std::deque<PacketRecord> m_recvHistory;
     /**
      * Maintains the sum of the size of all packets in #m_packetHistory .
      * This is done for efficiency reasons
