@@ -236,6 +236,8 @@ public:
 
     virtual uint64_t UpdateDepartureTime(uint32_t prev_s, uint32_t now_s);
 
+    virtual uint64_t GetPacketSize(uint16_t sequence);
+
     virtual uint64_t GetPacketTxTimestamp(uint16_t sequence);
     /**
      * The sender application will call this function every time it needs to

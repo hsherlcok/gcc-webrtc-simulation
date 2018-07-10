@@ -328,6 +328,20 @@ uint64_t SenderBasedController::UpdateDepartureTime(uint32_t prev_s, uint32_t no
     return (now_t - prev_t);
 }
 
+uint64_t SenderBasedController::GetPacketSize(uint16_t sequence) {
+    uint32_t i = 0;
+    uint32_t qsize = m_PacketTransitHistory.size();
+
+    // std::cout << "GETPKT::at(0):: " << m_PacketTransitHistory.at(0).sequence << "\n";
+    for(i = 0; i < qsize; i++){
+        if(m_PacketTransitHistory.at(i).sequence == sequence){
+            // std::cout << "GetPacketTxTimestamp:: " << m_PacketTransitHistory.at(i).txTimestampUs << "\n"; 
+            return m_PacketTransitHistory.at(i).size;
+        }
+    }
+    return -1;
+}
+
 void SenderBasedController::setHistoryLength(uint64_t lenUs) {
     m_historyLengthUs = lenUs;
 }

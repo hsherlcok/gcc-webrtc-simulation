@@ -75,6 +75,7 @@ GccSender::GccSender ()
 , m_firstFeedback{true}
 , m_group_size_inter{0}
 , m_group_size{0}
+, m_prev_group_size{0}
 {}
 
 GccSender::~GccSender () {}
@@ -421,7 +422,9 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
             m_curr_group_start_seq = sequence;		// Sequence of Group's first packet
             m_curr_group_time = m_controller->GetPacketTxTimestamp(sequence);        // Departure time of Group's first packet
             m_firstFeedback = false;
-
+            
+            m_group_size = 0;
+            m_group_size += m_controller->GetPacketSize(sequence);
             m_prev_time = timestampUs;
             m_prev_seq = sequence;
             continue;
@@ -438,7 +441,12 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
             if(m_gid == 0){
                 // First Group
 	        m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
-                m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
+//                m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
+                m_prev_group_size = m_group_size;
+                
+                m_group_size = 0;
+                m_group_size += m_controller->GetPacketSize(sequence);
+
                 m_curr_group_start_seq = sequence;
 
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
@@ -459,16 +467,21 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 	 	l_inter_departure = m_controller->UpdateDepartureTime(m_prev_group_seq, m_prev_seq);
         	l_inter_delay_var = l_inter_arrival - l_inter_departure;
 
+                // Update Current&Previous Group State
 		m_curr_group_time = curr_pkt_send_time;
 
 		m_prev_group_atime = m_prev_time;
 		m_prev_group_seq = m_prev_seq;                        
-                        
-  //              std::cout << "*. " << m_group_size << "\n";
-                m_group_size_inter = (m_prev_group_seq - m_curr_group_start_seq) - m_group_size;
-                m_group_size = m_prev_group_seq - m_curr_group_start_seq;
 
-//	        std::cout << "**. " << m_group_size << "\n";
+                // Update Group Size interval      
+                m_group_size_inter = m_group_size - m_prev_group_size;
+
+                // Save Previous Group Size
+                m_prev_group_size = m_group_size;
+
+                m_group_size = 0;
+                m_group_size += m_controller->GetPacketSize(sequence);
+
                 m_curr_group_start_seq = sequence;
 	        std::cout << m_ssrc << "\t" << m_gid << " Group Changed\n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
@@ -487,7 +500,9 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         
             m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size_inter, m_prev_time, ecn);
 
-            // Increment...
+            // Increment
+            // Group Size, previous packet receive time, previous packet sequence.
+            m_group_size += m_controller->GetPacketSize(sequence);
             m_prev_time = timestampUs;
             m_prev_seq = sequence;
 
@@ -506,7 +521,8 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         
             m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size_inter, m_prev_time, ecn);
 
-            // Increment...
+            // Increment
+            m_group_size += m_controller->GetPacketSize(sequence);
             m_prev_time = timestampUs;
             m_prev_seq = sequence;
 
@@ -517,7 +533,12 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
             if(m_gid == 0){
                 // First Group
 	        m_prev_group_seq = m_prev_seq;		// Sequence of Previous Group's last packet.
-                m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
+//                m_group_size = m_prev_group_seq - m_curr_group_start_seq;	// Group size
+                m_prev_group_size = m_group_size;
+
+                m_group_size = 0;
+                m_group_size += m_controller->GetPacketSize(sequence);
+
                 m_curr_group_start_seq = sequence;
 
 		m_prev_group_atime = m_prev_time;	// Arrival time of Previous Group's last packet.
@@ -543,11 +564,13 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
 		m_prev_group_atime = m_prev_time;
 		m_prev_group_seq = m_prev_seq;                        
                         
-      //          std::cout << "*. " << m_group_size << "\n";
-                m_group_size_inter = (m_prev_group_seq - m_curr_group_start_seq) - m_group_size;
-                m_group_size = m_prev_group_seq - m_curr_group_start_seq;
+                m_group_size_inter = m_group_size - m_prev_group_size;
 
-	//        std::cout << "**. " << m_group_size << "\n";
+                m_prev_group_size = m_group_size;
+
+                m_group_size = 0;
+                m_group_size += m_controller->GetPacketSize(sequence);
+
                 m_curr_group_start_seq = sequence;
                 std::cout << m_ssrc << "\tGroup Changed\n";
                 std::cout << "1. " << m_prev_group_seq << "\n";
@@ -568,7 +591,8 @@ void GccSender::RecvPacket (Ptr<Socket> socket)
         m_controller->processFeedback (nowUs, sequence, timestampUs, l_inter_arrival, l_inter_departure, l_inter_delay_var, m_group_size_inter, m_prev_time, ecn);
 
     
-        // Increment...
+        // Increment
+        m_group_size += m_controller->GetPacketSize(sequence);
         m_prev_time = timestampUs;
         m_prev_seq = sequence;
     }

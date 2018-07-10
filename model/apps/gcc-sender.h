@@ -106,6 +106,7 @@ private:
     bool m_firstFeedback;
     int m_group_size_inter;
     int m_group_size;
+    int m_prev_group_size;
 };
 
 }
