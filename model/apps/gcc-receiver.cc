@@ -101,7 +101,7 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
 
     if(m_timer + ns3::Seconds(LOGTIMER) < ns3::Simulator::Now())
     { 
-       std::cout<<ns3::Simulator::Now()<<" Node ID : "<<GetNode()->GetId()<<" ptr : "<<this<<" Recv Throuhput per 10s : "<<(double)m_numPackets*8/((ns3::Simulator::Now()-m_timer).ToDouble(ns3::Time::S)*1000*1000)<<std::endl;
+       std::cout<<ns3::Simulator::Now()<<": Node ID : "<<GetNode()->GetId()<<" ptr : "<<this<<" Recv Throuhput per 10s : "<<(double)m_numPackets*8/((ns3::Simulator::Now()-m_timer).ToDouble(ns3::Time::S)*1000*1000)<<std::endl;
        m_timer = ns3::Simulator::Now();
        m_numPackets = 0;
     }
@@ -125,10 +125,11 @@ void GccReceiver::RecvPacket (Ptr<Socket> socket)
     }
     uint64_t txTimestampUs = header.GetTimestamp();
     uint64_t recvTimestampUs = Simulator::Now ().GetMicroSeconds ();
-    m_movertt = m_movertt * .8 + (recvTimestampUs - txTimestampUs) * .2;
+    std::cout << "current rtt : " << (recvTimestampUs - txTimestampUs) << std::endl;
+    m_movertt = m_movertt * .5 + (recvTimestampUs - txTimestampUs) * .5;
     
     if(m_rttT + ns3::Seconds(RTTLOG) < ns3::Simulator::Now()) {
-        std::cout << "movertt : " << m_movertt << std::endl;
+        std::cout << ns3::Simulator::Now() << " movertt : " << m_movertt << std::endl;
         m_rttT = ns3::Simulator::Now();
     }
     
